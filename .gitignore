@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Local data (never commit a user's invoices)
+*.db
+*.db-wal
+*.db-shm
+*.db-staging
+*.sqlite
+*.sqlite3
+data/
+
+# Backups and exports produced while testing
+backups/
+*.zip
+!tests/fixtures/*.zip
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Playwright output
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Environment and secrets — the updater private key must never be committed
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!src-tauri/**/*.pub

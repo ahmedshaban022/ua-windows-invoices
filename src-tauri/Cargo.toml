@@ -1,0 +1,59 @@
+[package]
+name = "ua-windows-invoices"
+default-run = "ua-windows-invoices"
+version = "1.0.0"
+description = "Windows desktop invoice application (Arabic RTL)"
+authors = ["ua"]
+edition = "2021"
+rust-version = "1.82"
+
+[lib]
+name = "ua_windows_invoices_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-opener = "2.7.2"
+tauri-plugin-dialog = "2.8.4"
+tauri-plugin-fs = "2.7.1"
+tauri-plugin-process = "2.4.0"
+tauri-plugin-updater = "2.14.1"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+rusqlite = { version = "0.41.1", features = ["bundled", "backup"] }
+calamine = "0.37.0"
+rust_xlsxwriter = "0.101.0"
+image = "0.25.10"
+
+thiserror = "2.0.21"
+tokio = { version = "1", features = ["sync", "rt-multi-thread", "macros", "time"] }
+dirs = "7"
+chrono = { version = "0.4", features = ["serde", "clock"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.10"
+hex = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate", "time"] }
+log = "0.4"
+parking_lot = "0.12"
+
+# WebView2 COM interop for PDF / print / high-resolution image export.
+# MUST stay on 0.39 so it unifies with Tauri's own webview2-com ^0.39 dependency;
+# two versions would mean two incompatible Rust types for the same COM interface.
+webview2-com = "0.39"
+windows = "0.62"
+
+[features]
+# This feature is used for production builds where `devUrl` points to the filesystem.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
