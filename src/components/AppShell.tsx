@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { useSettings } from "../state/settings";
+import { displayCompanyName } from "../lib/format";
 
 const NAV_ITEMS = [
   { to: "/", label: "فاتورة جديدة", icon: FilePlus2, end: true },
@@ -27,6 +28,9 @@ const TITLES: Record<string, string> = {
   "/settings": "الإعدادات",
 };
 
+/** The name of the application. */
+const APP_NAME = "ua-invoices";
+
 export function AppShell({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
   const location = useLocation();
@@ -36,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     : (TITLES[location.pathname] ?? "فاتورة");
 
   const logo = settings?.logoSvg ?? "";
+  const companyName = displayCompanyName(settings);
 
   return (
     <div className="app-shell">
@@ -51,7 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Archive size={26} />
           )}
           <div>
-            <div className="sidebar__brand-name">{settings?.companyName ?? "فاتورة"}</div>
+            <div className="sidebar__brand-name">{companyName || APP_NAME}</div>
             <div className="sidebar__brand-sub">برنامج الفواتير</div>
           </div>
         </div>
@@ -78,7 +83,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="topbar__title">{title}</div>
           <div className="topbar__spacer" />
           <div className="topbar__meta">
-            {settings?.currencyCode ?? "EGP"} — {settings?.companyName ?? ""}
+            {settings?.currencyCode ?? "EGP"}
+            {companyName ? ` — ${companyName}` : ""}
           </div>
         </header>
         <main className="page">

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    ua_windows_invoices_lib::run()
+    ua_invoices_lib::run()
 }

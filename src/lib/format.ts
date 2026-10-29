@@ -8,6 +8,23 @@
 
 const ARABIC_INDIC = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
 
+/**
+ * The values older installs stored as placeholders. They count as "not filled
+ * in", so a placeholder never reaches the interface or a printed invoice.
+ */
+const COMPANY_PLACEHOLDERS = ["اسم الشركة", "رقم الهاتف", "العنوان"];
+
+/**
+ * The company name to show, or an empty string when it was never filled in.
+ */
+export function displayCompanyName(
+  settings: { companyName?: string | null } | null | undefined,
+): string {
+  const value = (settings?.companyName ?? "").trim();
+  if (!value || COMPANY_PLACEHOLDERS.includes(value)) return "";
+  return value;
+}
+
 /** Convert ASCII digits to Arabic-Indic digits. */
 export function toArabicDigits(value: string): string {
   return value.replace(/[0-9]/g, (digit) => ARABIC_INDIC[Number(digit)] ?? digit);

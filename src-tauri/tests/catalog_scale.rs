@@ -6,8 +6,8 @@
 
 use std::time::Instant;
 
-use ua_windows_invoices_lib::db::open_in_memory;
-use ua_windows_invoices_lib::services::catalog::{self, ProductInput};
+use ua_invoices_lib::db::open_in_memory;
+use ua_invoices_lib::services::catalog::{self, ProductInput};
 
 const ADJECTIVES: [&str; 20] = [
     "حليب",

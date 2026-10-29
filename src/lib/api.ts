@@ -198,8 +198,9 @@ export const previewDocument = (payload: {
   customerName: string;
   customerPhone?: string | null;
   notes?: string | null;
+  terms?: string[];
   lines: InvoiceInput["lines"];
-}) => invoke<InvoiceDocument>("preview_document", payload);
+}) => invoke<InvoiceDocument>("preview_document", { payload });
 
 export const exportInvoicePdf = (invoiceId: number, path: string) =>
   invoke<string>("export_invoice_pdf", { invoiceId, path });

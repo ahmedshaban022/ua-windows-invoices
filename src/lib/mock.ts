@@ -28,11 +28,22 @@ interface MockState {
   sequence: number;
 }
 
+/** The payload the frontend sends to preview an unsaved invoice. */
+interface PreviewPayload {
+  invoiceNumber: string;
+  invoiceDate: string;
+  customerName: string;
+  customerPhone?: string | null;
+  notes?: string | null;
+  terms?: string[];
+  lines: InvoiceInput["lines"];
+}
+
 const state: MockState = {
   settings: {
-    companyName: "شركة النور للتجارة",
-    companyPhone: "01000000000",
-    companyAddress: "القاهرة — مصر",
+    companyName: "",
+    companyPhone: "",
+    companyAddress: "",
     logoSvg:
       '<svg viewBox="0 0 40 40" width="40" height="40"><path fill="#0b68e6" d="M20 2 36 11v18L20 38 4 29V11z"/></svg>',
     brandColor: "#0b68e6",
@@ -42,6 +53,7 @@ const state: MockState = {
     backupLocation: "",
     autoBackupEnabled: false,
     autoBackupRetention: 7,
+    invoiceTerms: ["حقوق النشر محفوظة", "ضمان شركة الأبنودي لمدة ثلاث أعوام"],
   },
   products: [
     {
@@ -270,6 +282,7 @@ function buildDocument(
     customerName: input.customerName,
     customerPhone: input.customerPhone ?? null,
     notes: input.notes ?? null,
+    terms: (input.terms ?? []).map((term) => term.trim()).filter(Boolean),
     currencyCode: settings.currencyCode,
     currencyNameAr: "جنيه مصري",
     seller: {
@@ -308,6 +321,7 @@ function makeInvoice(input: InvoiceInput, status: "draft" | "issued"): Invoice {
     customerName: input.customerName,
     customerPhone: input.customerPhone ?? null,
     notes: input.notes ?? null,
+    terms: (input.terms ?? []).map((term) => term.trim()).filter(Boolean),
     status,
     sellerSnapshot: {
       companyName: state.settings.companyName,
@@ -519,6 +533,7 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
             customerName: source.customerName,
             customerPhone: source.customerPhone,
             notes: source.notes,
+            terms: source.terms,
             lines: source.lines.map((line) => ({
               productId: line.productId,
               name: line.name,
@@ -549,14 +564,9 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
       return Promise.resolve(undefined);
 
     case "preview_document": {
-      const payload = args as unknown as {
-        invoiceNumber: string;
-        invoiceDate: string;
-        customerName: string;
-        customerPhone?: string | null;
-        notes?: string | null;
-        lines: InvoiceInput["lines"];
-      };
+      const payload =
+        (args as unknown as { payload: PreviewPayload }).payload ??
+        (args as unknown as PreviewPayload);
       const computed = computeLines(payload.lines ?? []);
       return Promise.resolve(
         buildDocument(
@@ -566,6 +576,7 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
             customerName: payload.customerName,
             customerPhone: payload.customerPhone ?? null,
             notes: payload.notes ?? null,
+            terms: payload.terms ?? [],
             lines: payload.lines ?? [],
           },
           computed,
@@ -592,6 +603,7 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
             customerName: invoice.customerName,
             customerPhone: invoice.customerPhone,
             notes: invoice.notes,
+            terms: invoice.terms,
             lines: [],
           },
           computed,

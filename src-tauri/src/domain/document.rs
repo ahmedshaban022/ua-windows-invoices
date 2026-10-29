@@ -51,6 +51,9 @@ pub struct InvoiceDocument {
     pub customer_name: String,
     pub customer_phone: Option<String>,
     pub notes: Option<String>,
+    /// The custom terms (بنود) printed at the end of the document.
+    #[serde(default)]
+    pub terms: Vec<String>,
     pub currency_code: String,
     pub currency_name_ar: String,
     pub seller: DocumentSeller,
@@ -83,6 +86,7 @@ impl InvoiceDocument {
             customer_name: invoice.customer_name.clone(),
             customer_phone: invoice.customer_phone.clone(),
             notes: invoice.notes.clone(),
+            terms: invoice.terms.clone(),
             currency_code: currency.code.clone(),
             currency_name_ar: currency.name_ar.clone(),
             seller: DocumentSeller {
@@ -124,6 +128,11 @@ impl InvoiceDocument {
             customer_name: input.customer_name.to_string(),
             customer_phone: input.customer_phone.map(|value| value.to_string()),
             notes: input.notes.map(|value| value.to_string()),
+            terms: input
+                .terms
+                .iter()
+                .map(|term| term.trim().to_string())
+                .collect(),
             currency_code: currency.code.clone(),
             currency_name_ar: currency.name_ar.clone(),
             seller: DocumentSeller {
@@ -148,6 +157,8 @@ pub struct PreviewInput<'a> {
     pub customer_name: &'a str,
     pub customer_phone: Option<&'a str>,
     pub notes: Option<&'a str>,
+    /// The custom terms (بنود) chosen for this invoice.
+    pub terms: &'a [String],
     pub lines: &'a [crate::domain::invoice::ComputedLine],
     pub total_minor: i64,
 }
@@ -189,6 +200,7 @@ mod tests {
                 customer_name: "عميل",
                 customer_phone: None,
                 notes: None,
+                terms: &[],
                 lines: &computed.lines,
                 total_minor: computed.total_minor,
             },

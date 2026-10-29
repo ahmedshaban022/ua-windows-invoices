@@ -64,6 +64,8 @@ pub struct Invoice {
     pub customer_name: String,
     pub customer_phone: Option<String>,
     pub notes: Option<String>,
+    /// The custom terms (بنود) the user attached to this invoice.
+    pub terms: Vec<String>,
     pub status: InvoiceStatus,
     pub seller_snapshot: SellerSnapshot,
     pub total_minor: i64,
@@ -83,6 +85,10 @@ pub struct InvoiceInput {
     pub customer_phone: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// The custom terms (بنود) to print at the end of the invoice. Optional,
+    /// and more than one may be chosen.
+    #[serde(default)]
+    pub terms: Vec<String>,
     pub lines: Vec<InvoiceLineInput>,
 }
 
@@ -104,8 +110,22 @@ impl InvoiceInput {
                 return Err(AppError::validation("رقم الهاتف غير صحيح"));
             }
         }
+        for term in &self.terms {
+            if term.trim().chars().count() > 300 {
+                return Err(AppError::validation("نص البند طويل جدًا"));
+            }
+        }
         Ok(())
     }
+}
+
+/// The terms of an invoice, cleaned and ready to store.
+fn clean_terms(terms: &[String]) -> Vec<String> {
+    terms
+        .iter()
+        .map(|term| term.trim().to_string())
+        .filter(|term| !term.is_empty())
+        .collect()
 }
 
 /// A page of invoices.
@@ -149,8 +169,8 @@ pub fn create_draft(
     let tx = conn.unchecked_transaction()?;
     tx.execute(
         "INSERT INTO invoices(invoice_number, invoice_date, customer_name, customer_phone, notes,
-             status, seller_snapshot_json, total_minor, created_at, updated_at)
-         VALUES (NULL, ?1, ?2, ?3, ?4, 'draft', ?5, ?6, ?7, ?7)",
+             terms_json, status, seller_snapshot_json, total_minor, created_at, updated_at)
+         VALUES (NULL, ?1, ?2, ?3, ?4, ?5, 'draft', ?6, ?7, ?8, ?8)",
         params![
             input.invoice_date.trim(),
             input.customer_name.trim(),
@@ -164,6 +184,7 @@ pub fn create_draft(
                 .as_ref()
                 .map(|n| n.trim())
                 .filter(|n| !n.is_empty()),
+            serde_json::to_string(&clean_terms(&input.terms))?,
             seller_json,
             computed.total_minor,
             timestamp,
@@ -250,7 +271,7 @@ pub fn update_draft(
 
     tx.execute(
         "UPDATE invoices SET invoice_date = ?2, customer_name = ?3, customer_phone = ?4,
-             notes = ?5, total_minor = ?6, updated_at = ?7
+             notes = ?5, terms_json = ?6, total_minor = ?7, updated_at = ?8
          WHERE id = ?1",
         params![
             invoice_id,
@@ -266,6 +287,7 @@ pub fn update_draft(
                 .as_ref()
                 .map(|n| n.trim())
                 .filter(|n| !n.is_empty()),
+            serde_json::to_string(&clean_terms(&input.terms))?,
             computed.total_minor,
             now(),
         ],
@@ -309,7 +331,7 @@ pub fn get(conn: &Connection, id: i64) -> AppResult<Option<Invoice>> {
     let invoice = conn
         .query_row(
             "SELECT id, invoice_number, invoice_date, customer_name, customer_phone, notes,
-                    status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
+                    terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
              FROM invoices WHERE id = ?1",
             [id],
             map_invoice,
@@ -365,12 +387,14 @@ fn format_quantity(thousandths: i64) -> String {
 fn map_invoice(row: &rusqlite::Row<'_>) -> rusqlite::Result<Invoice> {
     let id: i64 = row.get(0)?;
     let invoice_number: Option<String> = row.get(1)?;
-    let status_text: String = row.get(6)?;
-    let seller_json: String = row.get(7)?;
+    let status_text: String = row.get(7)?;
+    let seller_json: String = row.get(8)?;
+    let terms_json: String = row.get(6)?;
     let seller_snapshot: SellerSnapshot = serde_json::from_str(&seller_json).unwrap_or_default();
     let display_number = invoice_number
         .clone()
         .unwrap_or_else(|| draft_identifier(id));
+    let terms: Vec<String> = serde_json::from_str(&terms_json).unwrap_or_default();
 
     Ok(Invoice {
         id,
@@ -380,13 +404,14 @@ fn map_invoice(row: &rusqlite::Row<'_>) -> rusqlite::Result<Invoice> {
         customer_name: row.get(3)?,
         customer_phone: row.get(4)?,
         notes: row.get(5)?,
+        terms,
         status: InvoiceStatus::parse(&status_text),
         seller_snapshot,
-        total_minor: row.get(8)?,
+        total_minor: row.get(9)?,
         lines: Vec::new(),
-        deleted_at: row.get(9)?,
-        created_at: row.get(10)?,
-        updated_at: row.get(11)?,
+        deleted_at: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
     })
 }
 
@@ -420,7 +445,7 @@ pub fn list(conn: &Connection, filter: &InvoiceFilter) -> AppResult<InvoicePage>
 
     let list_sql = format!(
         "SELECT id, invoice_number, invoice_date, customer_name, customer_phone, notes,
-                status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
+                terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
          FROM invoices {where_sql}{date_clause}
          ORDER BY invoice_date DESC, id DESC LIMIT ? OFFSET ?"
     );
@@ -498,7 +523,7 @@ pub fn purge(conn: &Connection, id: i64) -> AppResult<()> {
 pub fn list_trashed(conn: &Connection) -> AppResult<Vec<Invoice>> {
     let mut stmt = conn.prepare(
         "SELECT id, invoice_number, invoice_date, customer_name, customer_phone, notes,
-                status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
+                terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
          FROM invoices WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
     )?;
     let mut items = stmt
@@ -525,13 +550,14 @@ pub fn duplicate_as_new(
     let tx = conn.unchecked_transaction()?;
     tx.execute(
         "INSERT INTO invoices(invoice_number, invoice_date, customer_name, customer_phone, notes,
-             status, seller_snapshot_json, total_minor, created_at, updated_at)
-         VALUES (NULL, ?1, ?2, ?3, ?4, 'draft', ?5, ?6, ?7, ?7)",
+             terms_json, status, seller_snapshot_json, total_minor, created_at, updated_at)
+         VALUES (NULL, ?1, ?2, ?3, ?4, ?5, 'draft', ?6, ?7, ?8, ?8)",
         params![
             chrono::Local::now().format("%Y-%m-%d").to_string(),
             source.customer_name,
             source.customer_phone,
             source.notes,
+            serde_json::to_string(&source.terms)?,
             seller_json,
             source.total_minor,
             timestamp,
@@ -583,6 +609,7 @@ mod tests {
             customer_name: "عميل تجريبي".into(),
             customer_phone: Some("01001234567".into()),
             notes: None,
+            terms: Vec::new(),
             lines: vec![line("حليب", "2", "25.00")],
         }
     }
@@ -674,7 +701,36 @@ mod tests {
         let reopened = get(&conn, issued.id).unwrap().unwrap();
         assert_eq!(reopened.lines[0].name, "حليب");
         assert_eq!(reopened.lines[0].unit_price_minor, 2500);
-        assert_eq!(reopened.seller_snapshot.company_name, "اسم الشركة");
+        // The company name was never filled in, so nothing was captured.
+        assert_eq!(reopened.seller_snapshot.company_name, "");
+    }
+
+    #[test]
+    fn stores_the_selected_terms_on_the_invoice() {
+        let conn = open_in_memory().unwrap();
+        let egp = Currency::egp();
+        let mut input = input();
+        input.terms = vec![
+            "حقوق النشر محفوظة".to_string(),
+            "   ".to_string(),
+            "ضمان شركة الأبنودي لمدة ثلاث أعوام".to_string(),
+        ];
+
+        let draft = create_draft(&conn, &input, &egp, &seller()).unwrap();
+        assert_eq!(draft.terms.len(), 2);
+        assert_eq!(draft.terms[0], "حقوق النشر محفوظة");
+
+        let reopened = get(&conn, draft.id).unwrap().unwrap();
+        assert_eq!(reopened.terms.len(), 2);
+        assert_eq!(reopened.terms[1], "ضمان شركة الأبنودي لمدة ثلاث أعوام");
+    }
+
+    #[test]
+    fn an_invoice_without_terms_has_none() {
+        let conn = open_in_memory().unwrap();
+        let egp = Currency::egp();
+        let draft = create_draft(&conn, &input(), &egp, &seller()).unwrap();
+        assert!(draft.terms.is_empty());
     }
 
     #[test]

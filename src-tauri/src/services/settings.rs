@@ -25,14 +25,33 @@ pub struct AppSettings {
     pub backup_location: String,
     pub auto_backup_enabled: bool,
     pub auto_backup_retention: i64,
+    /// The custom terms (بنود) the user can attach to an invoice.
+    #[serde(default)]
+    pub invoice_terms: Vec<String>,
+}
+
+/// The values older installs stored as placeholders. They are treated as
+/// "not filled in" so a placeholder never reaches a printed invoice.
+const PLACEHOLDER_COMPANY_NAME: &str = "اسم الشركة";
+const PLACEHOLDER_COMPANY_PHONE: &str = "رقم الهاتف";
+const PLACEHOLDER_COMPANY_ADDRESS: &str = "العنوان";
+
+/// Drop a placeholder value: an empty or never-edited field stays empty.
+fn clean(value: &str, placeholder: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed == placeholder {
+        String::new()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            company_name: "اسم الشركة".to_string(),
-            company_phone: "رقم الهاتف".to_string(),
-            company_address: "العنوان".to_string(),
+            company_name: String::new(),
+            company_phone: String::new(),
+            company_address: String::new(),
             logo_svg: include_str!("../../../assets/brand/logo.svg").to_string(),
             brand_color: "#0b68e6".to_string(),
             currency_code: "EGP".to_string(),
@@ -41,6 +60,7 @@ impl Default for AppSettings {
             backup_location: String::new(),
             auto_backup_enabled: false,
             auto_backup_retention: 7,
+            invoice_terms: Vec::new(),
         }
     }
 }
@@ -48,6 +68,34 @@ impl Default for AppSettings {
 impl AppSettings {
     pub fn currency(&self) -> Currency {
         Currency::by_exponent(&self.currency_code, self.currency_exponent)
+    }
+
+    /// The company name to show, or `None` when it was never filled in.
+    pub fn display_company_name(&self) -> Option<&str> {
+        let name = self.company_name.trim();
+        if name.is_empty() || name == PLACEHOLDER_COMPANY_NAME {
+            None
+        } else {
+            Some(name)
+        }
+    }
+
+    /// The seller identity without the placeholder values.
+    pub fn clean_company(&self) -> (String, String, String) {
+        (
+            clean(&self.company_name, PLACEHOLDER_COMPANY_NAME),
+            clean(&self.company_phone, PLACEHOLDER_COMPANY_PHONE),
+            clean(&self.company_address, PLACEHOLDER_COMPANY_ADDRESS),
+        )
+    }
+
+    /// The custom terms, without blank entries.
+    pub fn clean_terms(&self) -> Vec<String> {
+        self.invoice_terms
+            .iter()
+            .map(|term| term.trim().to_string())
+            .filter(|term| !term.is_empty())
+            .collect()
     }
 
     /// Validate a brand color: `#rrggbb` (case-insensitive).
@@ -72,6 +120,15 @@ pub fn load(conn: &Connection) -> AppResult<AppSettings> {
             "company_name" => settings.company_name = text,
             "company_phone" => settings.company_phone = text,
             "company_address" => settings.company_address = text,
+            "invoice_terms" => {
+                if let Some(list) = value.as_array() {
+                    settings.invoice_terms = list
+                        .iter()
+                        .filter_map(|item| item.as_str())
+                        .map(|item| item.to_string())
+                        .collect();
+                }
+            }
             "logo_svg" => settings.logo_svg = text,
             "brand_color" => settings.brand_color = text,
             "currency_code" => settings.currency_code = text,
@@ -126,6 +183,16 @@ pub fn save(conn: &Connection, settings: &AppSettings) -> AppResult<AppSettings>
         ("company_name", settings.company_name.clone().into()),
         ("company_phone", settings.company_phone.clone().into()),
         ("company_address", settings.company_address.clone().into()),
+        (
+            "invoice_terms",
+            serde_json::Value::Array(
+                settings
+                    .invoice_terms
+                    .iter()
+                    .map(|term| serde_json::Value::String(term.clone()))
+                    .collect(),
+            ),
+        ),
         ("logo_svg", settings.logo_svg.clone().into()),
         ("brand_color", settings.brand_color.clone().into()),
         ("currency_code", settings.currency_code.clone().into()),
@@ -185,10 +252,64 @@ mod tests {
     #[test]
     fn defaults_are_arabic_placeholders() {
         let settings = AppSettings::default();
-        assert_eq!(settings.company_name, "اسم الشركة");
+        // The company identity starts empty: a placeholder must never end up
+        // on a printed invoice.
+        assert_eq!(settings.company_name, "");
+        assert_eq!(settings.display_company_name(), None);
         assert_eq!(settings.brand_color, "#0b68e6");
         assert_eq!(settings.currency_code, "EGP");
         assert!(settings.logo_svg.contains("<svg"));
+    }
+
+    #[test]
+    fn a_placeholder_company_name_counts_as_not_set() {
+        let settings = AppSettings {
+            company_name: "اسم الشركة".to_string(),
+            company_phone: "رقم الهاتف".to_string(),
+            company_address: "العنوان".to_string(),
+            ..AppSettings::default()
+        };
+        assert_eq!(settings.display_company_name(), None);
+        assert_eq!(
+            settings.clean_company(),
+            (String::new(), String::new(), String::new())
+        );
+    }
+
+    #[test]
+    fn a_real_company_name_is_kept() {
+        let settings = AppSettings {
+            company_name: "  شركة النور  ".to_string(),
+            ..AppSettings::default()
+        };
+        assert_eq!(settings.display_company_name(), Some("شركة النور"));
+        assert_eq!(settings.clean_company().0, "شركة النور");
+    }
+
+    #[test]
+    fn invoice_terms_round_trip() {
+        let conn = open_in_memory().unwrap();
+        let settings = AppSettings {
+            invoice_terms: vec![
+                "حقوق النشر محفوظة".to_string(),
+                "ضمان شركة الأبنودي لمدة ثلاث أعوام".to_string(),
+            ],
+            ..AppSettings::default()
+        };
+        save(&conn, &settings).unwrap();
+
+        let loaded = load(&conn).unwrap();
+        assert_eq!(loaded.invoice_terms.len(), 2);
+        assert_eq!(loaded.invoice_terms[0], "حقوق النشر محفوظة");
+    }
+
+    #[test]
+    fn blank_terms_are_dropped() {
+        let settings = AppSettings {
+            invoice_terms: vec!["  ".to_string(), " garanty ".to_string()],
+            ..AppSettings::default()
+        };
+        assert_eq!(settings.clean_terms(), vec!["garanty".to_string()]);
     }
 
     #[test]

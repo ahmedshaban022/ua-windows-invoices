@@ -251,6 +251,31 @@
   color: #52606d;
 }
 
+/* The custom terms (بنود) ---------------------------------------------- */
+.invoice-terms {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+}
+
+.invoice-terms__rule {
+  width: 140px;
+  margin: 0 0 8px;
+  border: 0;
+  border-top: 1.5px solid var(--doc-brand, #0b68e6);
+  opacity: 0.45;
+}
+
+.invoice-terms__item {
+  margin: 0;
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: var(--doc-brand, #0b68e6);
+}
+
 .invoice-foot {
   margin-top: auto;
   padding-top: 12px;

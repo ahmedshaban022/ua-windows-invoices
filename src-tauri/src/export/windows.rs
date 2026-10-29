@@ -158,11 +158,35 @@ pub async fn evaluate(window: &WebviewWindow, script: &str) -> AppResult<String>
 /// Evaluate JavaScript and parse the JSON result into a `serde_json::Value`.
 pub async fn evaluate_json(window: &WebviewWindow, script: &str) -> AppResult<serde_json::Value> {
     let raw = evaluate(window, script).await?;
-    if raw == "undefined" || raw.trim().is_empty() {
+    parse_json_result(&raw)
+}
+
+/// Parse the JSON-encoded result of `ExecuteScript`.
+///
+/// `ExecuteScript` hands back the JSON encoding of the script's result. A
+/// script that returns a string is therefore encoded twice: the outer layer
+/// is a JSON string that holds JSON. Both shapes are accepted here, so a
+/// caller may use `JSON.stringify` without knowing how the result is wrapped.
+fn parse_json_result(raw: &str) -> AppResult<serde_json::Value> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed == "undefined" || trimmed == "null" {
         return Ok(serde_json::Value::Null);
     }
-    serde_json::from_str(&raw)
-        .map_err(|e| AppError::export(format!("تعذّر قراءة نتيجة صفحة الفاتورة: {e}")))
+
+    let value: serde_json::Value = serde_json::from_str(trimmed)
+        .map_err(|e| AppError::export(format!("تعذّر قراءة نتيجة صفحة الفاتورة: {e}")))?;
+
+    // A JSON string that carries JSON is decoded one more level.
+    if let Some(inner) = value.as_str() {
+        let inner = inner.trim();
+        if inner.starts_with('[') || inner.starts_with('{') {
+            if let Ok(decoded) = serde_json::from_str::<serde_json::Value>(inner) {
+                return Ok(decoded);
+            }
+        }
+    }
+
+    Ok(value)
 }
 
 /// The bounding box of every page element in the render host, in CSS pixels.
@@ -188,6 +212,21 @@ pub async fn capture_pages(window: &WebviewWindow, scale: f64) -> AppResult<Vec<
     });
     call_devtools(window, "Emulation.setDeviceMetricsOverride", &metrics).await?;
 
+    let captured = capture_pages_inner(window, scale).await;
+
+    // Restore the normal metrics so the host window is usable afterwards,
+    // even when the capture failed half way through.
+    let _ = call_devtools(
+        window,
+        "Emulation.clearDeviceMetricsOverride",
+        &serde_json::json!({}),
+    )
+    .await;
+
+    captured
+}
+
+async fn capture_pages_inner(window: &WebviewWindow, scale: f64) -> AppResult<Vec<Vec<u8>>> {
     let rects = page_boxes(window).await?;
 
     let mut pages = Vec::with_capacity(rects.len());
@@ -209,23 +248,16 @@ pub async fn capture_pages(window: &WebviewWindow, scale: f64) -> AppResult<Vec<
         pages.push(decode_base64(&data)?);
     }
 
-    // Restore the normal metrics so the host window is usable afterwards.
-    let _ = call_devtools(
-        window,
-        "Emulation.clearDeviceMetricsOverride",
-        &serde_json::json!({}),
-    )
-    .await;
-
     Ok(pages)
 }
 
 /// Read the page rectangles reported by the render host.
 async fn page_boxes(window: &WebviewWindow) -> AppResult<Vec<PageBox>> {
-    const SCRIPT: &str = "JSON.stringify(Array.from(document.querySelectorAll('[data-invoice-page]')).map(function (el) { var r = el.getBoundingClientRect(); return { x: r.x + window.scrollX, y: r.y + window.scrollY, width: r.width, height: r.height }; }))";
-    let raw = evaluate(window, SCRIPT).await?;
-    let value: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|e| AppError::export(format!("تعذّر قراءة صفحات الفاتورة: {e}")))?;
+    // The script returns the array itself: `ExecuteScript` encodes the result
+    // as JSON already, so wrapping it in `JSON.stringify` would encode it a
+    // second time and the array would arrive as a string.
+    const SCRIPT: &str = "Array.from(document.querySelectorAll('[data-invoice-page]')).map(function (el) { var r = el.getBoundingClientRect(); return { x: r.x + window.scrollX, y: r.y + window.scrollY, width: r.width, height: r.height }; })";
+    let value = evaluate_json(window, SCRIPT).await?;
     let array = value
         .as_array()
         .ok_or_else(|| AppError::export("تعذّر قراءة صفحات الفاتورة"))?;
@@ -489,5 +521,31 @@ mod tests {
     fn strips_data_url_prefix() {
         let bytes = decode_base64("data:image/png;base64,aGVsbG8=").unwrap();
         assert_eq!(bytes, b"hello");
+    }
+
+    #[test]
+    fn parses_a_json_array_result() {
+        // `ExecuteScript` returns the JSON encoding of the script result.
+        let value =
+            parse_json_result("[{\"x\":1.5,\"y\":2.0,\"width\":794.0,\"height\":1123.0}]").unwrap();
+        let array = value.as_array().expect("an array");
+        assert_eq!(array.len(), 1);
+        assert_eq!(array[0].get("width").and_then(|v| v.as_f64()), Some(794.0));
+    }
+
+    #[test]
+    fn parses_a_double_encoded_json_array_result() {
+        // A script that returns `JSON.stringify([...])` is encoded twice.
+        let raw = "\"[{\\\"x\\\":1.5,\\\"width\\\":794.0}]\"";
+        let value = parse_json_result(raw).unwrap();
+        let array = value.as_array().expect("an array");
+        assert_eq!(array.len(), 1);
+    }
+
+    #[test]
+    fn parses_a_primitive_result() {
+        assert_eq!(parse_json_result("true").unwrap().as_bool(), Some(true));
+        assert!(parse_json_result("undefined").unwrap().is_null());
+        assert!(parse_json_result("").unwrap().is_null());
     }
 }

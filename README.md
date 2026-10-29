@@ -1,4 +1,4 @@
-# Invoice — Windows desktop invoicing (Arabic RTL)
+# ua-invoices — Windows desktop invoicing (Arabic RTL)
 
 A complete, offline **Windows desktop application** for creating and issuing
 invoices in Arabic with a right-to-left interface.
@@ -25,7 +25,7 @@ Build the installer:
 
 ```powershell
 npm run tauri:build
-# → src-tauri/target/release/bundle/nsis/Invoice_1.0.0_x64-setup.exe
+# → src-tauri/target/release/bundle/nsis/ua-invoices_1.0.0_x64-setup.exe
 ```
 
 Full instructions: [`docs/BUILD.md`](docs/BUILD.md).

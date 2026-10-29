@@ -132,4 +132,40 @@ test.describe("برنامج الفواتير", () => {
     await dialog.locator(".modal__footer").getByRole("button", { name: "إغلاق" }).click();
     await expect(dialog).toHaveCount(0);
   });
+
+  test("يختار بنود الفاتورة ويطبعها في آخر الفاتورة", async ({ page }) => {
+    await page.getByLabel("اسم العميل").fill("عميل تجريبي");
+    await fillLine(page, "منتج تجريبي", "2", "50.00");
+
+    const terms = page.locator(".term-picker__item");
+    await expect(terms).toHaveCount(2);
+    await terms.filter({ hasText: "حقوق النشر محفوظة" }).click();
+    await terms.filter({ hasText: "ضمان شركة الأبنودي" }).click();
+
+    await page.getByRole("button", { name: "معاينة الفاتورة" }).click();
+    const invoicePage = page
+      .getByRole("dialog", { name: "معاينة الفاتورة" })
+      .locator(".invoice-page")
+      .first();
+    await expect(invoicePage.locator(".invoice-terms__item")).toHaveCount(2);
+    await expect(invoicePage.getByText("حقوق النشر محفوظة")).toBeVisible();
+    await expect(invoicePage.getByText("ضمان شركة الأبنودي لمدة ثلاث أعوام")).toBeVisible();
+
+    // The terms survive the issue and stay on the stored invoice.
+    await page
+      .getByRole("dialog", { name: "معاينة الفاتورة" })
+      .locator(".modal__footer")
+      .getByRole("button", { name: "إغلاق" })
+      .click();
+    await page.getByRole("button", { name: "إصدار الفاتورة" }).click();
+    await expect(page.locator(".invoice-page .invoice-terms__item")).toHaveCount(2);
+  });
+
+  test("يخفي اسم الشركة عندما لا يكون مكتوبًا", async ({ page }) => {
+    // The app name stays, but a company name that was never filled in — and
+    // the placeholder older installs stored — never shows up.
+    await expect(page.locator(".sidebar__brand-name")).toHaveText("ua-invoices");
+    await expect(page.getByText("اسم الشركة")).toHaveCount(0);
+    await expect(page.locator(".topbar__meta")).toHaveText("EGP");
+  });
 });

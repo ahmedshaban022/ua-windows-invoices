@@ -9,8 +9,14 @@ use rusqlite::Connection;
 use crate::domain::error::AppResult;
 
 /// Every migration, in order. The version number is the file prefix.
-const MIGRATIONS: &[(i64, &str, &str)] =
-    &[(1, "0001_init.sql", include_str!("migrations/0001_init.sql"))];
+const MIGRATIONS: &[(i64, &str, &str)] = &[
+    (1, "0001_init.sql", include_str!("migrations/0001_init.sql")),
+    (
+        2,
+        "0002_invoice_terms.sql",
+        include_str!("migrations/0002_invoice_terms.sql"),
+    ),
+];
 
 /// Apply all pending migrations.
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -62,7 +68,7 @@ mod tests {
     fn migrations_apply_to_empty_database() {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
-        assert_eq!(current_version(&conn).unwrap(), 1);
+        assert_eq!(current_version(&conn).unwrap(), 2);
 
         // Core tables exist.
         for table in [
@@ -92,7 +98,21 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap();
-        assert_eq!(current_version(&conn).unwrap(), 1);
+        assert_eq!(current_version(&conn).unwrap(), 2);
+    }
+
+    #[test]
+    fn invoices_carry_a_terms_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(invoices)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(columns.iter().any(|c| c == "terms_json"));
     }
 
     #[test]

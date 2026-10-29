@@ -55,10 +55,13 @@ pub fn save_logo(paths: &AppPaths, svg: &str) -> AppResult<()> {
 
 /// Build the seller snapshot captured when an invoice is issued.
 pub fn snapshot(settings: &AppSettings, logo_svg: &str) -> SellerSnapshot {
+    // A company name that was never filled in stays empty, so it is never
+    // printed on a document.
+    let (company_name, company_phone, company_address) = settings.clean_company();
     SellerSnapshot {
-        company_name: settings.company_name.clone(),
-        company_phone: settings.company_phone.clone(),
-        company_address: settings.company_address.clone(),
+        company_name,
+        company_phone,
+        company_address,
         logo_svg: logo_svg.to_string(),
         brand_color: settings.brand_color.clone(),
         currency_code: settings.currency_code.clone(),

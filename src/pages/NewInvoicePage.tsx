@@ -48,11 +48,16 @@ export function NewInvoicePage() {
   const settings = useSettings((state) => state.settings);
   const exponent = settings?.currencyExponent ?? 2;
   const currencyCode = settings?.currencyCode ?? "EGP";
+  const availableTerms = useMemo(
+    () => (settings?.invoiceTerms ?? []).map((term) => term.trim()).filter(Boolean),
+    [settings],
+  );
 
   const [invoiceDate, setInvoiceDate] = useState(todayIso());
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [terms, setTerms] = useState<string[]>([]);
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
   const [computed, setComputed] = useState<ComputedInvoice | null>(null);
   const [preview, setPreview] = useState<DocumentModel | null>(null);
@@ -86,6 +91,7 @@ export function NewInvoicePage() {
       customerName?: string;
       customerPhone?: string;
       notes?: string;
+      terms?: string[];
       lines?: DraftLine[];
     } | null;
     if (!data) return;
@@ -93,6 +99,7 @@ export function NewInvoicePage() {
     if (data.customerName) setCustomerName(data.customerName);
     if (data.customerPhone) setCustomerPhone(data.customerPhone);
     if (data.notes) setNotes(data.notes);
+    if (data.terms && data.terms.length > 0) setTerms(data.terms);
     if (data.lines && data.lines.length > 0) setLines(data.lines);
     setRecovered(null);
     toast("تم استعادة المسودة غير المحفوظة", "success");
@@ -159,12 +166,13 @@ export function NewInvoicePage() {
           customerName,
           customerPhone,
           notes,
+          terms,
           lines,
         })
         .catch(() => undefined);
     }, 900);
     return () => window.clearTimeout(handle);
-  }, [invoiceDate, customerName, customerPhone, notes, lines]);
+  }, [invoiceDate, customerName, customerPhone, notes, terms, lines]);
 
   /* ------------------------------------------------------- document preview */
   useEffect(() => {
@@ -181,6 +189,7 @@ export function NewInvoicePage() {
           customerName: customerName || "العميل",
           customerPhone: customerPhone || null,
           notes: notes || null,
+          terms,
           lines: lineInputs.filter((line) => line.name.trim().length > 0),
         });
         if (!cancelled) setPreview(document);
@@ -191,7 +200,7 @@ export function NewInvoicePage() {
     return () => {
       cancelled = true;
     };
-  }, [computed, invoiceDate, customerName, customerPhone, notes, lineInputs]);
+  }, [computed, invoiceDate, customerName, customerPhone, notes, terms, lineInputs]);
 
   /* --------------------------------------------------------------- actions */
   const updateLine = (key: string, patch: Partial<DraftLine>) => {
@@ -258,6 +267,7 @@ export function NewInvoicePage() {
     customerName: customerName.trim(),
     customerPhone: customerPhone.trim() || null,
     notes: notes.trim() || null,
+    terms,
     lines: lines
       .filter((line) => line.name.trim().length > 0)
       .map((line) => ({
@@ -513,6 +523,35 @@ export function NewInvoicePage() {
           onChange={(event) => setNotes(event.target.value)}
         />
       </Card>
+
+      {availableTerms.length > 0 ? (
+        <Card title="بنود الفاتورة">
+          <div className="stack">
+            <p className="muted text-sm">
+              اختر البنود التي تريدها في آخر الفاتورة. الاختيار اختياري، ويمكن اختيار أكثر من بند.
+            </p>
+            <div className="term-picker">
+              {availableTerms.map((term) => {
+                const checked = terms.includes(term);
+                return (
+                  <label className="term-picker__item" key={term}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setTerms((current) =>
+                          checked ? current.filter((item) => item !== term) : [...current, term],
+                        )
+                      }
+                    />
+                    <span>{term}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       <Modal
         open={previewOpen}

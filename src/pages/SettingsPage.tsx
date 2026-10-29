@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Archive, Download, HardDriveDownload, RotateCcw, Upload } from "lucide-react";
+import {
+  Archive,
+  Download,
+  HardDriveDownload,
+  Plus,
+  RotateCcw,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
-import { Alert, Badge, Button, Card, Field, Loading } from "../components/ui";
+import { Alert, Badge, Button, Card, Field, IconButton, Loading } from "../components/ui";
 import * as api from "../lib/api";
 import { formatBytes, formatTimestamp } from "../lib/format";
 import type { BackupFile } from "../lib/types";
@@ -37,6 +45,8 @@ export function SettingsPage() {
   const [backupLocation, setBackupLocation] = useState("");
   const [autoBackup, setAutoBackup] = useState(false);
   const [retention, setRetention] = useState(7);
+  const [terms, setTerms] = useState<string[]>([]);
+  const [newTerm, setNewTerm] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +64,7 @@ export function SettingsPage() {
     setBackupLocation(settings.backupLocation);
     setAutoBackup(settings.autoBackupEnabled);
     setRetention(settings.autoBackupRetention);
+    setTerms(settings.invoiceTerms ?? []);
   }, [settings]);
 
   const refreshBackups = async () => {
@@ -87,6 +98,7 @@ export function SettingsPage() {
         backupLocation,
         autoBackupEnabled: autoBackup,
         autoBackupRetention: retention,
+        invoiceTerms: terms,
         logoSvg: settings.logoSvg,
       });
       await api.applyBrandColor();
@@ -128,6 +140,21 @@ export function SettingsPage() {
     } catch (caught) {
       toast(api.errorMessage(caught), "error");
     }
+  };
+
+  const addTerm = () => {
+    const value = newTerm.trim();
+    if (!value) return;
+    if (terms.some((term) => term.trim() === value)) {
+      toast("هذا البند موجود بالفعل", "error");
+      return;
+    }
+    setTerms([...terms, value]);
+    setNewTerm("");
+  };
+
+  const removeTerm = (index: number) => {
+    setTerms(terms.filter((_, position) => position !== index));
   };
 
   const createBackup = async () => {
@@ -174,10 +201,11 @@ export function SettingsPage() {
       <div className="grid grid--2">
         <Card title="بيانات الشركة">
           <div className="stack">
-            <Field label="اسم الشركة">
+            <Field label="اسم الشركة" hint="اتركه فارغًا لإخفاء الاسم من الفاتورة">
               <input
                 className="input"
                 value={companyName}
+                placeholder="اسم الشركة"
                 onChange={(event) => setCompanyName(event.target.value)}
               />
             </Field>
@@ -185,6 +213,7 @@ export function SettingsPage() {
               <input
                 className="input ltr"
                 value={companyPhone}
+                placeholder="رقم الهاتف"
                 onChange={(event) => setCompanyPhone(event.target.value)}
               />
             </Field>
@@ -192,6 +221,7 @@ export function SettingsPage() {
               <input
                 className="input"
                 value={companyAddress}
+                placeholder="العنوان"
                 onChange={(event) => setCompanyAddress(event.target.value)}
               />
             </Field>
@@ -269,6 +299,48 @@ export function SettingsPage() {
                 />
               </div>
             </Field>
+          </div>
+        </Card>
+
+        <Card title="بنود الفاتورة" actions={<Badge kind="default">{terms.length}</Badge>}>
+          <div className="stack">
+            <p className="muted text-sm">
+              عبارات جاهزة تُطبع في آخر الفاتورة — مثل «حقوق النشر محفوظة». عند إنشاء فاتورة تختار
+              منها ما تشاء، ويمكن اختيار أكثر من بند.
+            </p>
+
+            {terms.length > 0 ? (
+              <ul className="term-list">
+                {terms.map((term, index) => (
+                  <li className="term-list__item" key={`${index}-${term}`}>
+                    <span>{term}</span>
+                    <IconButton label={`حذف البند ${term}`} onClick={() => removeTerm(index)}>
+                      <Trash2 size={15} aria-hidden="true" />
+                    </IconButton>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="muted text-sm">لا توجد بنود بعد.</div>
+            )}
+
+            <div className="row">
+              <input
+                className="input"
+                value={newTerm}
+                placeholder="اكتب بندًا جديدًا"
+                onChange={(event) => setNewTerm(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addTerm();
+                  }
+                }}
+              />
+              <Button onClick={addTerm}>
+                <Plus size={15} aria-hidden="true" /> إضافة
+              </Button>
+            </div>
           </div>
         </Card>
 

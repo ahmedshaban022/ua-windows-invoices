@@ -118,28 +118,36 @@ pub async fn export_invoice_images(
     })
 }
 
+/// The payload the frontend sends to preview an invoice that is not saved yet.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewRequest {
+    pub invoice_number: String,
+    pub invoice_date: String,
+    pub customer_name: String,
+    pub customer_phone: Option<String>,
+    pub notes: Option<String>,
+    /// The custom terms (بنود) chosen for this invoice.
+    pub terms: Option<Vec<String>>,
+    pub lines: Vec<crate::domain::invoice::InvoiceLineInput>,
+}
+
 /// The document a *draft* preview renders (no permanent number yet).
 #[tauri::command]
-pub fn preview_document(
-    app: AppHandle,
-    invoice_number: String,
-    invoice_date: String,
-    customer_name: String,
-    customer_phone: Option<String>,
-    notes: Option<String>,
-    lines: Vec<crate::domain::invoice::InvoiceLineInput>,
-) -> AppResult<InvoiceDocument> {
+pub fn preview_document(app: AppHandle, payload: PreviewRequest) -> AppResult<InvoiceDocument> {
     let state = app.state::<AppState>();
     let currency = state.currency()?;
     let seller = state.seller_snapshot()?;
-    let computed = crate::domain::invoice::compute_invoice(&lines, &currency)?;
+    let computed = crate::domain::invoice::compute_invoice(&payload.lines, &currency)?;
+    let terms = payload.terms.unwrap_or_default();
     Ok(InvoiceDocument::build_preview(
         crate::domain::document::PreviewInput {
-            invoice_number: &invoice_number,
-            invoice_date: &invoice_date,
-            customer_name: &customer_name,
-            customer_phone: customer_phone.as_deref(),
-            notes: notes.as_deref(),
+            invoice_number: &payload.invoice_number,
+            invoice_date: &payload.invoice_date,
+            customer_name: &payload.customer_name,
+            customer_phone: payload.customer_phone.as_deref(),
+            notes: payload.notes.as_deref(),
+            terms: &terms,
             lines: &computed.lines,
             total_minor: computed.total_minor,
         },

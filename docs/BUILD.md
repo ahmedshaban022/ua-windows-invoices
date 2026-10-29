@@ -1,4 +1,4 @@
-# Building the Windows Invoice Application
+# Building ua-invoices
 
 This document is the complete build guide for a developer or for the owner who
 wants to produce the installer.
@@ -87,11 +87,11 @@ npm run tauri build
 The result is written to:
 
 ```
-src-tauri/target/release/bundle/nsis/Invoice_1.0.0_x64-setup.exe
+src-tauri/target/release/bundle/nsis/ua-invoices_1.0.0_x64-setup.exe
 ```
 
 The installer installs **per user** (no administrator rights) and places the
-application under `%LOCALAPPDATA%\Programs\Invoice`. The user's data lives in
+application under `%LOCALAPPDATA%\Programs\ua-invoices`. The user's data lives in
 `%APPDATA%\com.ua.invoice` — deleting the application never deletes invoices.
 
 > **The build prints one error at the end when the updater key is not
@@ -114,7 +114,7 @@ application under `%LOCALAPPDATA%\Programs\Invoice`. The user's data lives in
 npm run tauri build -- --no-bundle
 ```
 
-produces `src-tauri/target/release/invoice.exe`.
+produces `src-tauri/target/release/ua-invoices.exe`.
 
 ---
 

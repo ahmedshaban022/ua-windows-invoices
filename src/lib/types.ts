@@ -68,6 +68,8 @@ export interface Invoice {
   customerName: string;
   customerPhone: string | null;
   notes: string | null;
+  /** The custom terms (بنود) the user attached to this invoice. */
+  terms: string[];
   status: InvoiceStatus;
   sellerSnapshot: SellerSnapshot;
   totalMinor: number;
@@ -96,6 +98,8 @@ export interface InvoiceInput {
   customerName: string;
   customerPhone?: string | null;
   notes?: string | null;
+  /** The custom terms (بنود) to print at the end of the invoice. */
+  terms?: string[];
   lines: InvoiceLineInput[];
 }
 
@@ -136,6 +140,8 @@ export interface AppSettings {
   backupLocation: string;
   autoBackupEnabled: boolean;
   autoBackupRetention: number;
+  /** The custom terms (بنود) the user can attach to an invoice. */
+  invoiceTerms: string[];
 }
 
 export interface BrandLogo {
@@ -167,6 +173,8 @@ export interface InvoiceDocument {
   customerName: string;
   customerPhone: string | null;
   notes: string | null;
+  /** The custom terms (بنود) printed at the end of the document. */
+  terms: string[];
   currencyCode: string;
   currencyNameAr: string;
   seller: DocumentSeller;

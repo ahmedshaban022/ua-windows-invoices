@@ -70,7 +70,9 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
         />
 
         <div className="invoice-head__seller">
-          <div className="invoice-head__company">{document.seller.companyName}</div>
+          {document.seller.companyName ? (
+            <div className="invoice-head__company">{document.seller.companyName}</div>
+          ) : null}
           <div className="invoice-head__meta">
             {document.seller.companyPhone ? <div>{document.seller.companyPhone}</div> : null}
             {document.seller.companyAddress ? <div>{document.seller.companyAddress}</div> : null}
@@ -162,11 +164,22 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
               <div>{document.notes}</div>
             </div>
           ) : null}
+
+          {document.terms.length > 0 ? (
+            <div className="invoice-terms">
+              <hr className="invoice-terms__rule" />
+              {document.terms.map((term, index) => (
+                <p className="invoice-terms__item" key={`${index}-${term}`}>
+                  {term}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </>
       ) : null}
 
       <footer className="invoice-foot">
-        <span>{document.seller.companyName}</span>
+        {document.seller.companyName ? <span>{document.seller.companyName}</span> : null}
         <span className="invoice-foot__page">
           {pageIndex + 1} / {pageCount}
         </span>
@@ -189,8 +202,10 @@ function usePaginate(document: DocumentModel, onReady?: () => void): PageIndexes
     () =>
       document.lines
         .map((line) => `${line.name}|${line.quantityDisplay}|${line.unitPriceDisplay}`)
-        .join("\n"),
-    [document.lines],
+        .join("\n") +
+      "\n" +
+      document.terms.join("\n"),
+    [document.lines, document.terms],
   );
 
   useLayoutEffect(() => {
@@ -200,12 +215,15 @@ function usePaginate(document: DocumentModel, onReady?: () => void): PageIndexes
     const rows = Array.from(measure.querySelectorAll<HTMLElement>("[data-row-index]"));
     const head = measure.querySelector<HTMLElement>("[data-head-height]");
     const foot = measure.querySelector<HTMLElement>("[data-foot-height]");
+    const terms = measure.querySelector<HTMLElement>("[data-terms-height]");
 
     const overhead =
       (head?.offsetHeight ?? 0) +
       (foot?.offsetHeight ?? 0) +
-      // The totals box and the notes block only live on the last page.
-      150;
+      // The totals box, the notes block and the terms only live on the last
+      // page, so they are reserved before the lines are split.
+      150 +
+      (terms?.offsetHeight ?? 0);
 
     const available = Math.max(120, PAGE_CONTENT_HEIGHT - overhead);
 
@@ -300,6 +318,19 @@ function MeasuringTable({ document }: { document: DocumentModel }) {
           <span className="invoice-foot__page">1 / 1</span>
         </footer>
       </div>
+
+      {document.terms.length > 0 ? (
+        <div data-terms-height>
+          <div className="invoice-terms">
+            <hr className="invoice-terms__rule" />
+            {document.terms.map((term, index) => (
+              <p className="invoice-terms__item" key={`${index}-${term}`}>
+                {term}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
