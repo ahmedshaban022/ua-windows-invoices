@@ -38,7 +38,19 @@ cargo fetch --manifest-path src-tauri/Cargo.toml
 
 ---
 
-## 3. Generate the icons
+## 3. The typeface
+
+The interface and the invoice use **Cairo**, which is bundled with the
+repository in `src/assets/fonts/` (three woff2 subsets, ~81 KB in total) and
+declared in `src/styles/fonts.css`. Nothing is fetched from a font CDN at run
+time, so the app renders correctly with no network — the same rule the whole
+application follows.
+
+Cairo is released under the SIL Open Font License 1.1.
+
+---
+
+## 4. Generate the icons
 
 The Windows icon set is **not** committed as a binary blob; it is generated
 from the brand SVG so it always matches the logo:
@@ -52,7 +64,7 @@ This writes `src-tauri/icons/` (`32x32.png`, `128x128.png`,
 
 ---
 
-## 4. Run it in development
+## 5. Run it in development
 
 ```powershell
 npm run tauri dev
@@ -63,14 +75,17 @@ The Rust side recompiles on change.
 
 ---
 
-## 5. Tests
+## 6. Tests
 
 ```powershell
-# Rust: 73 tests
+# Rust: 84 tests
 cargo test --manifest-path src-tauri/Cargo.toml
 
 # Frontend: 6 tests
 npm run test:unit
+
+# End-to-end: 14 tests (needs a browser)
+npm run test:e2e
 
 # TypeScript (strict)
 npm run typecheck
@@ -78,7 +93,7 @@ npm run typecheck
 
 ---
 
-## 6. Build the installer
+## 7. Build the installer
 
 ```powershell
 npm run tauri build
@@ -118,7 +133,7 @@ produces `src-tauri/target/release/ua-invoices.exe`.
 
 ---
 
-## 7. Where the data lives
+## 8. Where the data lives
 
 | What | Path |
 | --- | --- |
@@ -131,7 +146,7 @@ telemetry and no network access apart from the optional update check.
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 **`linker 'link.exe' not found`**
 The MSVC environment is not active in the shell. Run
