@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Printer, Save, Trash2 } from "lucide-react";
+import { Eye, Plus, Printer, Save, Trash2 } from "lucide-react";
 
-import { InvoiceDocument } from "../components/InvoiceDocument";
+import { InvoicePreview } from "../components/InvoicePreview";
 import { ProductCombobox } from "../components/ProductCombobox";
-import { Alert, Button, Card, Field, IconButton, Loading } from "../components/ui";
+import { Alert, Button, Card, Field, IconButton, Loading, Modal } from "../components/ui";
 import * as api from "../lib/api";
 import { formatMinor, parseAmount, parseQuantity, todayIso } from "../lib/format";
 import type {
@@ -50,6 +50,7 @@ export function NewInvoicePage() {
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
   const [computed, setComputed] = useState<ComputedInvoice | null>(null);
   const [preview, setPreview] = useState<DocumentModel | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [recovered, setRecovered] = useState<unknown>(null);
 
@@ -319,6 +320,11 @@ export function NewInvoicePage() {
             اكتب بيانات العميل والبنود. الإجمالي يُحسب داخل البرنامج مباشرة.
           </p>
         </div>
+        <div className="page__actions">
+          <Button onClick={() => setPreviewOpen(true)}>
+            <Eye size={16} aria-hidden="true" /> معاينة الفاتورة
+          </Button>
+        </div>
       </div>
 
       {recovered ? (
@@ -492,15 +498,6 @@ export function NewInvoicePage() {
         </div>
 
         <div className="stack">
-          <Card title="معاينة الفاتورة">
-            {preview ? (
-              <div className="invoice-preview" style={{ maxHeight: "70vh" }}>
-                <InvoiceDocument document={preview} />
-              </div>
-            ) : (
-              <div className="muted text-sm">أضف بنودًا لعرض معاينة الفاتورة.</div>
-            )}
-          </Card>
           <Card title="ملخص">
             <div className="stack">
               <div className="row row--between">
@@ -531,6 +528,20 @@ export function NewInvoicePage() {
           </Card>
         </div>
       </div>
+
+      <Modal
+        open={previewOpen}
+        title="معاينة الفاتورة"
+        onClose={() => setPreviewOpen(false)}
+        size="wide"
+        footer={<Button onClick={() => setPreviewOpen(false)}>إغلاق</Button>}
+      >
+        {preview ? (
+          <InvoicePreview document={preview} />
+        ) : (
+          <div className="muted text-sm">أضف بنودًا لعرض معاينة الفاتورة.</div>
+        )}
+      </Modal>
     </>
   );
 }

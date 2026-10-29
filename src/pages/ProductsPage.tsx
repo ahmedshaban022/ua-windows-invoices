@@ -291,16 +291,18 @@ export function ProductsPage() {
           </>
         }
       >
-        <Field label="اسم الصنف">
+        <Field label="اسم الصنف" htmlFor="product-name">
           <input
+            id="product-name"
             className="input"
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
             autoFocus
           />
         </Field>
-        <Field label="السعر" hint={`بـ ${currencyCode}`}>
+        <Field label="السعر" hint={`بـ ${currencyCode}`} htmlFor="product-price">
           <input
+            id="product-price"
             className="input input--numeric"
             value={form.price}
             inputMode="decimal"
@@ -308,8 +310,13 @@ export function ProductsPage() {
             onChange={(event) => setForm({ ...form, price: event.target.value })}
           />
         </Field>
-        <Field label="الرمز (SKU)" hint="اختياري — يتيح المطابقة الدقيقة عند الاستيراد">
+        <Field
+          label="الرمز (SKU)"
+          hint="اختياري — يتيح المطابقة الدقيقة عند الاستيراد"
+          htmlFor="product-sku"
+        >
           <input
+            id="product-sku"
             className="input ltr"
             value={form.sku}
             onChange={(event) => setForm({ ...form, sku: event.target.value })}

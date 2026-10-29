@@ -167,15 +167,38 @@ interface ModalProps {
 export function Modal({ open, title, onClose, children, footer, size = "default" }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // `onClose` is usually an inline arrow, so it changes identity on every
+  // render. Keeping it in a ref lets the effect below depend on `open` alone.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  // Tracks whether the dialog has already been opened, so the panel is only
+  // focused once per opening.
+  const openedRef = useRef(false);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      openedRef.current = false;
+      return;
+    }
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeRef.current();
     };
     window.addEventListener("keydown", onKey);
-    panelRef.current?.focus();
+
+    if (!openedRef.current) {
+      openedRef.current = true;
+      const panel = panelRef.current;
+      // Only take the focus when nothing inside the dialog claimed it (an
+      // input with autoFocus, for instance). Focusing the panel on every
+      // render would pull the caret out of the field the user is typing in.
+      if (panel && !panel.contains(document.activeElement)) {
+        panel.focus();
+      }
+    }
+
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

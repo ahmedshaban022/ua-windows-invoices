@@ -678,6 +678,12 @@ a:hover {
   gap: 14px;
 }
 
+/* The invoice preview inside a dialog scrolls on its own, so the dialog
+   never grows taller than the window. */
+.modal .invoice-preview {
+  max-height: 70vh;
+}
+
 .modal__footer {
   padding: 14px 18px;
   border-top: 1px solid var(--border);

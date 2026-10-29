@@ -83,4 +83,36 @@ test.describe("برنامج الفواتير", () => {
     await page.getByRole("button", { name: "استعادة المسودة" }).click();
     await expect(page.getByLabel("اسم العميل")).toHaveValue("مسودة العميل");
   });
+
+  test("يبقي التركيز في حقل الاسم أثناء كتابة صنف جديد", async ({ page }) => {
+    await page.getByRole("link", { name: "الأصناف" }).click();
+    await page.getByRole("button", { name: "صنف جديد" }).click();
+
+    const name = page.getByLabel("اسم الصنف");
+    await name.click();
+    await name.pressSequentially("حليب كامل الدسم");
+
+    // The caret must stay in the field while the user types.
+    await expect(name).toBeFocused();
+    await expect(name).toHaveValue("حليب كامل الدسم");
+  });
+
+  test("يفتح معاينة الفاتورة في نافذة منبثقة", async ({ page }) => {
+    await page.getByLabel("اسم العميل").fill("عميل تجريبي");
+    await fillLine(page, "منتج تجريبي", "2", "50.00");
+
+    await page.getByRole("button", { name: "معاينة الفاتورة" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "معاينة الفاتورة" });
+    await expect(dialog).toBeVisible();
+
+    // Scope to the rendered page: the document also renders a hidden copy of
+    // the table that is used to measure the pagination.
+    const invoicePage = dialog.locator(".invoice-page").first();
+    await expect(invoicePage.getByText("منتج تجريبي")).toBeVisible();
+    await expect(invoicePage.getByText("100.00").first()).toBeVisible();
+
+    await dialog.locator(".modal__footer").getByRole("button", { name: "إغلاق" }).click();
+    await expect(dialog).toHaveCount(0);
+  });
 });

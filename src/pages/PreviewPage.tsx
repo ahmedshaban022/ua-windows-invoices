@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { ArrowRight, FileImage, FileText, Printer } from "lucide-react";
 
-import { InvoiceDocument } from "../components/InvoiceDocument";
+import { InvoicePreview } from "../components/InvoicePreview";
 import { Alert, Badge, Button, Card, Loading } from "../components/ui";
 import * as api from "../lib/api";
 import { formatDate, formatMinor } from "../lib/format";
@@ -139,9 +139,7 @@ export function PreviewPage() {
       </div>
 
       <Card>
-        <div className="invoice-preview">
-          <InvoiceDocument document={document} />
-        </div>
+        <InvoicePreview document={document} />
       </Card>
     </>
   );

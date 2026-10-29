@@ -29,11 +29,14 @@
   overflow: hidden;
 }
 
+/* The hidden measuring table. It must mirror the real table exactly.
+   It is hidden rather than moved off-screen: an off-screen absolute box
+   would enlarge the scrollable area of its container by 10,000 px. */
 .invoice-page__measure {
   position: absolute;
   visibility: hidden;
-  inset-inline-start: -10000px;
   top: 0;
+  left: 0;
   width: var(--page-width);
   pointer-events: none;
 }
@@ -275,7 +278,20 @@
 
 .invoice-preview .invoice-page {
   box-shadow: 0 10px 34px rgba(31, 41, 51, 0.18);
-  transform-origin: top center;
+}
+
+/* The scaled document. The sizer reserves the scaled footprint and the
+   content is transformed on top of it, so the layout is never disturbed. */
+.invoice-preview__sizer {
+  position: relative;
+  flex: none;
+}
+
+.invoice-preview__content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
 }
 
 /* Printing ---------------------------------------------------------------- */
