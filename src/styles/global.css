@@ -202,7 +202,7 @@ a:hover {
   height: var(--topbar-height);
   flex: none;
   background: var(--brand);
-  color: var(--text-inverse);
+  color: var(--brand-contrast);
   display: flex;
   align-items: center;
   gap: 14px;
@@ -436,7 +436,7 @@ a:hover {
 .btn--primary {
   background: var(--brand);
   border-color: var(--brand);
-  color: var(--text-inverse);
+  color: var(--brand-contrast);
 }
 
 .btn--primary:hover:not(:disabled) {
@@ -462,7 +462,7 @@ a:hover {
 }
 
 .btn--soft:hover:not(:disabled) {
-  background: #dbe9fc;
+  background: var(--brand-soft-hover);
 }
 
 .btn--danger {
@@ -854,7 +854,7 @@ a:hover {
 
 .alert--info {
   background: var(--brand-soft);
-  border-color: #cfe0fa;
+  border-color: var(--brand-soft-hover);
   color: var(--brand-strong);
 }
 

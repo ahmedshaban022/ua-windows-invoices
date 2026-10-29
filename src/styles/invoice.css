@@ -150,7 +150,7 @@
 
 .invoice-table thead th {
   background: var(--doc-brand, #0b68e6);
-  color: #ffffff;
+  color: var(--doc-brand-contrast, #ffffff);
   font-weight: 700;
   padding: 8px 10px;
   text-align: start;
@@ -209,7 +209,7 @@
 
 .invoice-totals__row--grand {
   background: var(--doc-brand, #0b68e6);
-  color: #ffffff;
+  color: var(--doc-brand-contrast, #ffffff);
   font-weight: 800;
   font-size: 13pt;
 }
@@ -219,7 +219,7 @@
 }
 
 .invoice-totals__row--grand .invoice-totals__label {
-  color: #ffffff;
+  color: var(--doc-brand-contrast, #ffffff);
 }
 
 .invoice-totals__value {

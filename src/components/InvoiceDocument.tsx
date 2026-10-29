@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { formatDate } from "../lib/format";
+import { brandPalette } from "../lib/brand";
 import type { InvoiceDocument as DocumentModel, DocumentLine } from "../lib/types";
 
 /** A4 content height in CSS pixels (297mm minus the page padding). */
@@ -55,12 +56,18 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
   const brand = document.seller.brandColor || "#0b68e6";
   const currency = document.currencyNameAr;
   const isLast = pageIndex === pageCount - 1;
+  // The text on the solid brand bands has to stay readable whatever colour
+  // the owner picked.
+  const brandContrast = brandPalette(brand).contrast;
 
   return (
     <section
       className="invoice-page"
       data-invoice-page
-      style={{ ["--doc-brand" as string]: brand }}
+      style={{
+        ["--doc-brand" as string]: brand,
+        ["--doc-brand-contrast" as string]: brandContrast,
+      }}
       lang="ar"
     >
       <header className="invoice-head">

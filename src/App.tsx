@@ -11,13 +11,21 @@ import { ProductsPage } from "./pages/ProductsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrashPage } from "./pages/TrashPage";
 import { useSettings } from "./state/settings";
+import { applyBrandColor } from "./lib/brand";
 
 export function App() {
   const load = useSettings((state) => state.load);
+  const brandColor = useSettings((state) => state.settings?.brandColor);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The brand colour the owner picked follows every surface, the header bar
+  // included.
+  useEffect(() => {
+    applyBrandColor(brandColor);
+  }, [brandColor]);
 
   return (
     <HashRouter>

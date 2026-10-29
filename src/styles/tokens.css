@@ -8,10 +8,14 @@
 
 :root {
   /* Brand ------------------------------------------------------------- */
+  /* These are the defaults for the project brand colour `#0b68e6`. When the
+     owner picks a different colour in Settings, `lib/brand.ts` replaces them
+     on the document root so every surface follows the choice. */
   --brand: #0b68e6;
   --brand-strong: #0952b8;
   --brand-soft: #e9f1fd;
   --brand-softer: #f4f8fe;
+  --brand-soft-hover: #dbe9fc;
   --brand-contrast: #ffffff;
 
   /* Surfaces ---------------------------------------------------------- */
@@ -50,8 +54,9 @@
   --shadow-lg: 0 18px 48px rgba(31, 41, 51, 0.16);
 
   /* Type -------------------------------------------------------------- */
-  --font: "Segoe UI", "Noto Sans Arabic", Tahoma, "Dubai", Arial, sans-serif;
-  --font-document: "Segoe UI", "Noto Sans Arabic", Tahoma, "Dubai", Arial, sans-serif;
+  /* Cairo ships with the application (see styles/fonts.css). */
+  --font: "Cairo", "Segoe UI", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
+  --font-document: "Cairo", "Segoe UI", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
   --fs-xs: 12px;
   --fs-sm: 13px;
   --fs-base: 14px;

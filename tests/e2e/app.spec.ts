@@ -180,4 +180,38 @@ test.describe("برنامج الفواتير", () => {
     await expect(page.locator(".sidebar__brand-sub")).toHaveText("برنامج الفواتير");
     await expect(page.locator(".topbar__meta")).toHaveText("EGP — شركة الأبنودي");
   });
+
+  test("يغيّر لون الشريط العلوي مع لون العلامة", async ({ page }) => {
+    const topbar = page.locator(".topbar");
+    const before = await topbar.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+    await page.getByRole("link", { name: "الإعدادات" }).click();
+    await page.getByLabel("اختيار اللون").fill("#c0392b");
+
+    // The header follows the picked colour straight away.
+    await expect
+      .poll(async () => topbar.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe(before);
+    await expect
+      .poll(async () => topbar.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .toBe("rgb(192, 57, 43)");
+
+    // Saving keeps it.
+    await page.getByRole("button", { name: "حفظ الإعدادات" }).click();
+    await expect(page.getByText("تم حفظ الإعدادات")).toBeVisible();
+    await expect
+      .poll(async () => topbar.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .toBe("rgb(192, 57, 43)");
+  });
+
+  test("يستخدم خط Cairo في الواجهة", async ({ page }) => {
+    const font = await page.locator("body").evaluate((el) => getComputedStyle(el).fontFamily);
+    expect(font).toContain("Cairo");
+
+    const loaded = await page.evaluate(async () => {
+      await document.fonts.ready;
+      return document.fonts.check("14px Cairo");
+    });
+    expect(loaded).toBe(true);
+  });
 });

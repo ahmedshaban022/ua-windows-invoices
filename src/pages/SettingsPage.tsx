@@ -12,6 +12,7 @@ import {
 
 import { Alert, Badge, Button, Card, Field, IconButton, Loading } from "../components/ui";
 import * as api from "../lib/api";
+import { applyBrandColor, DEFAULT_BRAND_COLOR } from "../lib/brand";
 import { formatBytes, formatTimestamp } from "../lib/format";
 import type { BackupFile } from "../lib/types";
 import { useSettings } from "../state/settings";
@@ -39,7 +40,7 @@ export function SettingsPage() {
   const [companyName, setCompanyName] = useState("");
   const [companyPhone, setCompanyPhone] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
-  const [brandColor, setBrandColor] = useState("#0b68e6");
+  const [brandColor, setBrandColor] = useState("");
   const [currencyCode, setCurrencyCode] = useState("EGP");
   const [dateFormat, setDateFormat] = useState("dd/MM/yyyy");
   const [backupLocation, setBackupLocation] = useState("");
@@ -80,7 +81,28 @@ export function SettingsPage() {
     void refreshBackups();
   }, []);
 
+  // Live preview: while the owner is picking a colour, the header and the
+  // buttons follow it. Leaving the page puts the saved colour back.
+  const pickedBrand = /^#[0-9a-f]{6}$/i.test(brandColor)
+    ? brandColor
+    : (settings?.brandColor ?? null);
+  useEffect(() => {
+    if (!pickedBrand) return;
+    applyBrandColor(pickedBrand);
+    return () => {
+      applyBrandColor(settings?.brandColor);
+    };
+  }, [pickedBrand, settings?.brandColor]);
+
   if (!settings) return <Loading label="جارٍ تحميل الإعدادات…" />;
+
+  // The colour the form shows and saves: the typed one when it is a real
+  // colour, the stored one otherwise.
+  const effectiveBrandColor = /^#[0-9a-f]{6}$/i.test(brandColor)
+    ? brandColor
+    : /^#[0-9a-f]{6}$/i.test(settings.brandColor)
+      ? settings.brandColor
+      : DEFAULT_BRAND_COLOR;
 
   const persist = async () => {
     setSaving(true);
@@ -91,7 +113,7 @@ export function SettingsPage() {
         companyName,
         companyPhone,
         companyAddress,
-        brandColor,
+        brandColor: effectiveBrandColor,
         currencyCode,
         currencyExponent: settings.currencyExponent,
         dateFormat,
@@ -102,6 +124,9 @@ export function SettingsPage() {
         logoSvg: settings.logoSvg,
       });
       await api.applyBrandColor();
+      // The logo was recoloured on the Rust side; read the settings back so
+      // the sidebar shows it right away.
+      await load();
       toast("تم حفظ الإعدادات", "success");
     } catch (caught) {
       setError(api.errorMessage(caught));
@@ -225,18 +250,21 @@ export function SettingsPage() {
                 onChange={(event) => setCompanyAddress(event.target.value)}
               />
             </Field>
-            <Field label="لون العلامة" hint="بصيغة ست عشري مثل #0b68e6">
+            <Field
+              label="لون العلامة"
+              hint="بصيغة ست عشري مثل #0b68e6 — يتغيّر لون الشريط العلوي معاه"
+            >
               <div className="row">
                 <input
                   className="input ltr"
                   style={{ maxWidth: 160 }}
-                  value={brandColor}
+                  value={effectiveBrandColor}
                   onChange={(event) => setBrandColor(event.target.value)}
                 />
                 <input
                   type="color"
                   aria-label="اختيار اللون"
-                  value={/^#[0-9a-f]{6}$/i.test(brandColor) ? brandColor : "#0b68e6"}
+                  value={effectiveBrandColor}
                   onChange={(event) => setBrandColor(event.target.value)}
                   style={{ width: 44, height: 36 }}
                 />

@@ -39,13 +39,21 @@ interface PreviewPayload {
   lines: InvoiceInput["lines"];
 }
 
+/** The logo the application ships with. */
+const DEFAULT_LOGO_SVG =
+  '<svg viewBox="0 0 40 40" width="40" height="40"><path fill="#0b68e6" d="M20 2 36 11v18L20 38 4 29V11z"/></svg>';
+
+/** Replace every `#rrggbb` literal with the brand colour, like the Rust side. */
+function recolorSvg(svg: string, brandColor: string): string {
+  return svg.replace(/#[0-9a-f]{6}/gi, brandColor);
+}
+
 const state: MockState = {
   settings: {
     companyName: "",
     companyPhone: "",
     companyAddress: "",
-    logoSvg:
-      '<svg viewBox="0 0 40 40" width="40" height="40"><path fill="#0b68e6" d="M20 2 36 11v18L20 38 4 29V11z"/></svg>',
+    logoSvg: DEFAULT_LOGO_SVG,
     brandColor: "#0b68e6",
     currencyCode: "EGP",
     currencyExponent: 2,
@@ -360,6 +368,34 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
     case "save_settings":
       state.settings = { ...state.settings, ...(args.settings as AppSettings) };
       return Promise.resolve(state.settings);
+
+    case "get_brand_logo":
+      return Promise.resolve({
+        svg: state.settings.logoSvg,
+        brandColor: state.settings.brandColor,
+      });
+    case "save_brand_logo": {
+      const svg = String(args.svg ?? "");
+      state.settings.logoSvg = svg;
+      return Promise.resolve({ svg, brandColor: state.settings.brandColor });
+    }
+    case "import_brand_logo":
+      // The browser mock cannot read a file from disk, so the logo stays.
+      return Promise.resolve({
+        svg: state.settings.logoSvg,
+        brandColor: state.settings.brandColor,
+      });
+    case "reset_brand_logo":
+      state.settings.logoSvg = DEFAULT_LOGO_SVG;
+      return Promise.resolve({
+        svg: DEFAULT_LOGO_SVG,
+        brandColor: state.settings.brandColor,
+      });
+    case "apply_brand_color": {
+      const svg = recolorSvg(state.settings.logoSvg, state.settings.brandColor);
+      state.settings.logoSvg = svg;
+      return Promise.resolve({ svg, brandColor: state.settings.brandColor });
+    }
 
     case "list_products": {
       const query = normalize(String(args.query ?? ""));
