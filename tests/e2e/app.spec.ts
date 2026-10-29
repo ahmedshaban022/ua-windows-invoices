@@ -162,10 +162,22 @@ test.describe("برنامج الفواتير", () => {
   });
 
   test("يخفي اسم الشركة عندما لا يكون مكتوبًا", async ({ page }) => {
-    // The app name stays, but a company name that was never filled in — and
-    // the placeholder older installs stored — never shows up.
-    await expect(page.locator(".sidebar__brand-name")).toHaveText("ua-invoices");
+    // A company name that was never filled in — and the placeholder older
+    // installs stored — never shows up. The app name is not used as a
+    // stand-in either: the sidebar shows the logo and nothing else.
+    await expect(page.locator(".sidebar__brand-name")).toHaveCount(0);
+    await expect(page.locator(".sidebar__brand-sub")).toHaveCount(0);
     await expect(page.getByText("اسم الشركة")).toHaveCount(0);
     await expect(page.locator(".topbar__meta")).toHaveText("EGP");
+  });
+
+  test("يعرض اسم الشركة في الشريط الجانبي بعد كتابته", async ({ page }) => {
+    await page.getByRole("link", { name: "الإعدادات" }).click();
+    await page.getByPlaceholder("اسم الشركة").fill("شركة الأبنودي");
+    await page.getByRole("button", { name: "حفظ الإعدادات" }).click();
+
+    await expect(page.locator(".sidebar__brand-name")).toHaveText("شركة الأبنودي");
+    await expect(page.locator(".sidebar__brand-sub")).toHaveText("برنامج الفواتير");
+    await expect(page.locator(".topbar__meta")).toHaveText("EGP — شركة الأبنودي");
   });
 });

@@ -28,9 +28,6 @@ const TITLES: Record<string, string> = {
   "/settings": "الإعدادات",
 };
 
-/** The name of the application. */
-const APP_NAME = "ua-invoices";
-
 export function AppShell({ children }: { children: ReactNode }) {
   const settings = useSettings((state) => state.settings);
   const location = useLocation();
@@ -55,10 +52,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           ) : (
             <Archive size={26} />
           )}
-          <div>
-            <div className="sidebar__brand-name">{companyName || APP_NAME}</div>
-            <div className="sidebar__brand-sub">برنامج الفواتير</div>
-          </div>
+          {companyName ? (
+            <div>
+              <div className="sidebar__brand-name">{companyName}</div>
+              <div className="sidebar__brand-sub">برنامج الفواتير</div>
+            </div>
+          ) : null}
         </div>
 
         <nav className="sidebar__section" aria-label="التنقل الرئيسي">
