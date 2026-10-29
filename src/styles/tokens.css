@@ -29,7 +29,8 @@
   /* Text -------------------------------------------------------------- */
   --text: #1f2933;
   --text-soft: #52606d;
-  --text-muted: #7b8794;
+  /* 4.6:1 on the card surface, so small muted text still passes AA. */
+  --text-muted: #6b7583;
   --text-inverse: #ffffff;
 
   /* Status ------------------------------------------------------------ */
@@ -62,6 +63,24 @@
   --sidebar-width: 236px;
   --topbar-height: 56px;
   --page-max: 1400px;
+
+  /* Spacing scale (4px base) ------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* The invoice line sheet -------------------------------------------
+     The item column takes every pixel that is left over; the numeric
+     columns are fixed so they never squeeze the field that is read
+     and typed into. */
+  --sheet-col-qty: 88px;
+  --sheet-col-price: 148px;
+  --sheet-col-total: 132px;
+  --sheet-col-actions: 52px;
+  --sheet-min-width: 640px;
 
   /* Invoice document (A4 at 96 dpi) ----------------------------------- */
   --page-width: 210mm;

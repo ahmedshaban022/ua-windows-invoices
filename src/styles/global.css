@@ -46,6 +46,34 @@ a:hover {
   border-radius: var(--radius-sm);
 }
 
+/* Scrollbars are part of the interface, not the browser's default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
 /* Numbers stay left-to-right inside the RTL layout. */
 .ltr {
   direction: ltr;
@@ -207,7 +235,7 @@ a:hover {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-5);
 }
 
 .page__header {
@@ -514,7 +542,6 @@ a:hover {
 .table-wrap {
   overflow-x: auto;
 }
-
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -556,6 +583,165 @@ a:hover {
   display: flex;
   gap: 4px;
   justify-content: flex-end;
+}
+
+/* The invoice line sheet --------------------------------------------------
+   The item column absorbs every pixel that is left over, so the field the
+   user types into is never squeezed, while the numeric columns keep a
+   fixed size and their numbers stay aligned. */
+.sheet {
+  width: 100%;
+  min-width: var(--sheet-min-width);
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--fs-base);
+}
+
+.sheet__col-qty {
+  width: var(--sheet-col-qty);
+}
+
+.sheet__col-price {
+  width: var(--sheet-col-price);
+}
+
+.sheet__col-total {
+  width: var(--sheet-col-total);
+}
+
+.sheet__col-actions {
+  width: var(--sheet-col-actions);
+}
+
+.sheet th,
+.sheet td {
+  padding: 10px 12px;
+  text-align: start;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.sheet thead th {
+  background: var(--surface-muted);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-soft);
+  padding-block: 9px;
+}
+
+.sheet tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sheet tbody tr:hover {
+  background: var(--brand-softer);
+}
+
+.sheet__item {
+  padding-inline-end: 16px;
+}
+
+.sheet__total {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.sheet__total--empty {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+@media (max-width: 1180px) {
+  .sheet {
+    --sheet-col-qty: 76px;
+    --sheet-col-price: 124px;
+    --sheet-col-total: 112px;
+    --sheet-col-actions: 46px;
+    --sheet-min-width: 580px;
+  }
+}
+
+/* The invoice meta row ----------------------------------------------------
+   The date and the phone number are narrow by nature; the customer name
+   takes what is left. */
+.meta-row {
+  display: grid;
+  grid-template-columns: 200px minmax(240px, 1fr) 200px;
+  gap: var(--space-4);
+  align-items: end;
+}
+
+@media (max-width: 1000px) {
+  .meta-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .meta-row > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The totals bar ----------------------------------------------------------- */
+.totals {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.totals__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.totals__stat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.totals__label {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.totals__value {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.totals__stat--total {
+  font-size: var(--fs-md);
+}
+
+.totals__stat--total .totals__value {
+  color: var(--brand-strong);
+}
+
+.totals__note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* Utilities ---------------------------------------------------------------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.textarea--note {
+  max-width: 720px;
 }
 
 /* Empty & loading states -------------------------------------------------- */
@@ -863,8 +1049,15 @@ a:hover {
 
 .combobox__list {
   position: absolute;
-  z-index: 20;
-  inset-inline: 0;
+  z-index: 30;
+  /* Anchored to the start edge of the field, but never narrower than the
+     field itself: the option names have to be readable even when the field
+     sits in a narrow column. */
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+  width: 100%;
+  min-width: 420px;
+  max-width: min(560px, 92vw);
   top: calc(100% + 4px);
   margin: 0;
   padding: 4px;

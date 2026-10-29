@@ -6,7 +6,13 @@ import { InvoicePreview } from "../components/InvoicePreview";
 import { ProductCombobox } from "../components/ProductCombobox";
 import { Alert, Button, Card, Field, IconButton, Loading, Modal } from "../components/ui";
 import * as api from "../lib/api";
-import { formatMinor, parseAmount, parseQuantity, todayIso } from "../lib/format";
+import {
+  formatMinor,
+  formatThousandths,
+  parseAmount,
+  parseQuantity,
+  todayIso,
+} from "../lib/format";
 import type {
   ComputedInvoice,
   InvoiceDocument as DocumentModel,
@@ -310,6 +316,9 @@ export function NewInvoicePage() {
   if (!settings) return <Loading label="جارٍ تحميل الإعدادات…" />;
 
   const totalMinor = computed?.totalMinor ?? 0;
+  const totalQuantity = formatThousandths(
+    computed ? computed.lines.reduce((sum, line) => sum + line.quantityThousandths, 0) : 0,
+  );
 
   return (
     <>
@@ -323,6 +332,15 @@ export function NewInvoicePage() {
         <div className="page__actions">
           <Button onClick={() => setPreviewOpen(true)}>
             <Eye size={16} aria-hidden="true" /> معاينة الفاتورة
+          </Button>
+          <Button variant="soft" onClick={printDraft} loading={busy}>
+            <Printer size={16} aria-hidden="true" /> طباعة
+          </Button>
+          <Button onClick={saveDraftInvoice} loading={busy}>
+            <Save size={16} aria-hidden="true" /> حفظ كمسودة
+          </Button>
+          <Button variant="primary" onClick={issueInvoice} loading={busy}>
+            إصدار الفاتورة
           </Button>
         </div>
       </div>
@@ -343,191 +361,158 @@ export function NewInvoicePage() {
         </Alert>
       ) : null}
 
-      <div className="grid grid--sidebar">
-        <div className="stack">
-          <Card
-            title="بيانات الفاتورة"
-            actions={
-              <div className="btn-row">
-                <Button size="sm" onClick={saveDraftInvoice} loading={busy}>
-                  <Save size={15} aria-hidden="true" /> حفظ كمسودة
-                </Button>
-                <Button size="sm" variant="primary" onClick={issueInvoice} loading={busy}>
-                  إصدار الفاتورة
-                </Button>
-                <Button size="sm" variant="soft" onClick={printDraft} loading={busy}>
-                  <Printer size={15} aria-hidden="true" /> طباعة
-                </Button>
-              </div>
-            }
-          >
-            <div className="grid grid--3">
-              <Field label="تاريخ الفاتورة" htmlFor="invoice-date">
-                <input
-                  id="invoice-date"
-                  className="input"
-                  type="date"
-                  value={invoiceDate}
-                  onChange={(event) => setInvoiceDate(event.target.value)}
-                />
-              </Field>
-              <Field label="اسم العميل" htmlFor="customer-name">
-                <input
-                  id="customer-name"
-                  className="input"
-                  value={customerName}
-                  placeholder="اسم العميل"
-                  onChange={(event) => setCustomerName(event.target.value)}
-                />
-              </Field>
-              <Field label="رقم الهاتف" htmlFor="customer-phone">
-                <input
-                  id="customer-phone"
-                  className="input ltr"
-                  value={customerPhone}
-                  placeholder="01xxxxxxxxx"
-                  onChange={(event) => setCustomerPhone(event.target.value)}
-                />
-              </Field>
-            </div>
-          </Card>
-
-          <Card
-            title="بنود الفاتورة"
-            flush
-            actions={
-              <Button size="sm" variant="soft" onClick={addLine}>
-                <Plus size={15} aria-hidden="true" /> بند جديد
-              </Button>
-            }
-          >
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th style={{ width: "34%" }}>البند</th>
-                    <th style={{ width: "16%" }}>الكمية</th>
-                    <th style={{ width: "18%" }}>سعر الوحدة</th>
-                    <th style={{ width: "18%" }}>الإجمالي</th>
-                    <th style={{ width: 46 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line) => {
-                    const quantity = parseQuantity(line.quantity);
-                    const price = parseAmount(line.unitPrice, exponent);
-                    const lineTotal =
-                      quantity !== null && price !== null
-                        ? Math.round((quantity * price) / 1000)
-                        : null;
-                    return (
-                      <tr key={line.key}>
-                        <td>
-                          <ProductCombobox
-                            value={line.name}
-                            exponent={exponent}
-                            currencyCode={currencyCode}
-                            onSelect={(name, product) => applyProduct(line.key, name, product)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="input input--numeric"
-                            value={line.quantity}
-                            inputMode="decimal"
-                            onChange={(event) =>
-                              updateLine(line.key, { quantity: event.target.value })
-                            }
-                            aria-label="الكمية"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="input input--numeric"
-                            value={line.unitPrice}
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            onChange={(event) =>
-                              updateLine(line.key, { unitPrice: event.target.value })
-                            }
-                            aria-label="سعر الوحدة"
-                          />
-                        </td>
-                        <td className="table__numeric">
-                          {lineTotal === null
-                            ? "—"
-                            : `${formatMinor(lineTotal, exponent)} ${currencyCode}`}
-                        </td>
-                        <td>
-                          <div className="table__actions">
-                            <IconButton
-                              label="حذف البند"
-                              onClick={() => removeLine(line.key)}
-                              disabled={lines.length === 1}
-                            >
-                              <Trash2 size={16} aria-hidden="true" />
-                            </IconButton>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="card__footer">
-              <span className="muted text-sm">
-                الكميات والنسب تحوّل إلى وحدات صحيحة، والإجمالي يحسب في Rust.
-              </span>
-              <div className="spacer" />
-              <span className="strong">
-                الإجمالي: {formatMinor(totalMinor, exponent)} {currencyCode}
-              </span>
-            </div>
-          </Card>
-
-          <Card title="ملاحظات">
-            <textarea
-              className="textarea"
-              value={notes}
-              placeholder="ملاحظات تظهر في الفاتورة المطبوعة"
-              onChange={(event) => setNotes(event.target.value)}
+      <Card title="بيانات الفاتورة">
+        <div className="meta-row">
+          <Field label="تاريخ الفاتورة" htmlFor="invoice-date">
+            <input
+              id="invoice-date"
+              className="input"
+              type="date"
+              value={invoiceDate}
+              onChange={(event) => setInvoiceDate(event.target.value)}
             />
-          </Card>
+          </Field>
+          <Field label="اسم العميل" htmlFor="customer-name">
+            <input
+              id="customer-name"
+              className="input"
+              value={customerName}
+              placeholder="اسم العميل"
+              onChange={(event) => setCustomerName(event.target.value)}
+            />
+          </Field>
+          <Field label="رقم الهاتف" htmlFor="customer-phone">
+            <input
+              id="customer-phone"
+              className="input ltr"
+              value={customerPhone}
+              placeholder="01xxxxxxxxx"
+              onChange={(event) => setCustomerPhone(event.target.value)}
+            />
+          </Field>
         </div>
+      </Card>
 
-        <div className="stack">
-          <Card title="ملخص">
-            <div className="stack">
-              <div className="row row--between">
-                <span className="muted">عدد البنود</span>
-                <span className="strong">{computed?.lines.length ?? 0}</span>
+      <Card
+        title="بنود الفاتورة"
+        flush
+        actions={
+          <Button size="sm" variant="soft" onClick={addLine}>
+            <Plus size={15} aria-hidden="true" /> بند جديد
+          </Button>
+        }
+        footer={
+          <div className="totals">
+            <div className="totals__row">
+              <div className="totals__stat">
+                <span className="totals__label">عدد البنود</span>
+                <span className="totals__value">{computed?.lines.length ?? 0}</span>
               </div>
-              <div className="row row--between">
-                <span className="muted">الكمية الإجمالية</span>
-                <span className="strong ltr">
-                  {computed
-                    ? computed.lines
-                        .reduce((sum, line) => sum + line.quantityThousandths, 0)
-                        .toString()
-                    : "0"}
-                </span>
+              <div className="totals__stat">
+                <span className="totals__label">الكمية الإجمالية</span>
+                <span className="totals__value ltr">{totalQuantity}</span>
               </div>
-              <div className="row row--between">
-                <span className="muted">الإجمالي</span>
-                <span className="strong">
+              <div className="spacer" />
+              <div className="totals__stat totals__stat--total">
+                <span className="totals__label">الإجمالي</span>
+                <span className="totals__value">
                   {formatMinor(totalMinor, exponent)} {currencyCode}
                 </span>
               </div>
-              <hr className="divider" />
-              <div className="muted text-xs">
-                يُحفظ رقم الفاتورة نهائيًا عند الإصدار فقط، ولا يُعاد استخدامه أبدًا.
-              </div>
             </div>
-          </Card>
-        </div>
-      </div>
+            <p className="totals__note">
+              يُحفظ رقم الفاتورة نهائيًا عند الإصدار فقط، ولا يُعاد استخدامه أبدًا.
+            </p>
+          </div>
+        }
+      >
+        <table className="sheet">
+          <colgroup>
+            <col />
+            <col className="sheet__col-qty" />
+            <col className="sheet__col-price" />
+            <col className="sheet__col-total" />
+            <col className="sheet__col-actions" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">البند</th>
+              <th scope="col">الكمية</th>
+              <th scope="col">سعر الوحدة</th>
+              <th scope="col">الإجمالي</th>
+              <th scope="col">
+                <span className="sr-only">إجراءات</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => {
+              const quantity = parseQuantity(line.quantity);
+              const price = parseAmount(line.unitPrice, exponent);
+              const lineTotal =
+                quantity !== null && price !== null ? Math.round((quantity * price) / 1000) : null;
+              return (
+                <tr key={line.key}>
+                  <td className="sheet__item">
+                    <ProductCombobox
+                      value={line.name}
+                      exponent={exponent}
+                      currencyCode={currencyCode}
+                      onSelect={(name, product) => applyProduct(line.key, name, product)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="input input--numeric"
+                      value={line.quantity}
+                      inputMode="decimal"
+                      onChange={(event) => updateLine(line.key, { quantity: event.target.value })}
+                      aria-label="الكمية"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="input input--numeric"
+                      value={line.unitPrice}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      onChange={(event) => updateLine(line.key, { unitPrice: event.target.value })}
+                      aria-label="سعر الوحدة"
+                    />
+                  </td>
+                  <td className="sheet__total">
+                    {lineTotal === null ? (
+                      <span className="sheet__total--empty">—</span>
+                    ) : (
+                      `${formatMinor(lineTotal, exponent)} ${currencyCode}`
+                    )}
+                  </td>
+                  <td>
+                    <div className="table__actions">
+                      <IconButton
+                        label="حذف البند"
+                        onClick={() => removeLine(line.key)}
+                        disabled={lines.length === 1}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                      </IconButton>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+
+      <Card title="ملاحظات">
+        <textarea
+          className="textarea textarea--note"
+          value={notes}
+          placeholder="ملاحظات تظهر في الفاتورة المطبوعة"
+          onChange={(event) => setNotes(event.target.value)}
+        />
+      </Card>
 
       <Modal
         open={previewOpen}

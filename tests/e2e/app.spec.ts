@@ -38,8 +38,25 @@ test.describe("برنامج الفواتير", () => {
 
     // 3 × 12.50 = 37.50
     await expect(page.getByText("37.50").first()).toBeVisible();
-    const summary = page.locator(".card").filter({ hasText: "عدد البنود" });
-    await expect(summary.getByText("37.50 EGP")).toBeVisible();
+    const totals = page.locator(".totals");
+    await expect(totals.getByText("37.50 EGP")).toBeVisible();
+  });
+
+  test("يعطي حقل البند وقائمة الاختيارات مساحة كافية", async ({ page }) => {
+    const input = page.getByPlaceholder("ابحث عن صنف أو اكتب اسمًا جديدًا").first();
+
+    // The item field must never be squeezed into a stub.
+    const field = await input.boundingBox();
+    expect(field?.width ?? 0).toBeGreaterThanOrEqual(240);
+
+    // The suggestion list must be readable even when the field is narrow.
+    await input.click();
+    await input.fill("ح");
+    const list = page.locator(".combobox__list").first();
+    await expect(list).toBeVisible();
+    const options = await list.boundingBox();
+    expect(options?.width ?? 0).toBeGreaterThanOrEqual(400);
+    await expect(list.getByText("حليب كامل الدسم")).toBeVisible();
   });
 
   test("يسمح بتغيير سعر السطر دون تغيير سعر الصنف في القائمة", async ({ page }) => {
