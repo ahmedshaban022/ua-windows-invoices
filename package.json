@@ -1,8 +1,8 @@
 {
   "name": "ua-invoices",
   "private": true,
-  "version": "1.1.0",
-  "description": "Windows desktop invoice application (Arabic RTL) — Tauri 2 + React + Rust + SQLite",
+  "version": "1.1.1",
+  "description": "Windows desktop invoice application (Arabic RTL) â€” Tauri 2 + React + Rust + SQLite",
   "type": "module",
   "scripts": {
     "dev": "vite",
