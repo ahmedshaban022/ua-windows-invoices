@@ -54,7 +54,7 @@
       "dialog": false,
       "pubkey": "REPLACE_WITH_YOUR_UPDATER_PUBLIC_KEY",
       "endpoints": [
-        "https://github.com/<OWNER>/<REPO>/releases/latest/download/latest.json"
+        "https://github.com/ahmedshaban022/ua-windows-invoices/releases/latest/download/latest.json"
       ]
     }
   }

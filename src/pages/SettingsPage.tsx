@@ -53,6 +53,7 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [backups, setBackups] = useState<BackupFile[]>([]);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState("");
 
   useEffect(() => {
     if (!settings) return;
@@ -79,6 +80,15 @@ export function SettingsPage() {
 
   useEffect(() => {
     void refreshBackups();
+  }, []);
+
+  // The version comes from the package metadata, so it always matches the
+  // installed build.
+  useEffect(() => {
+    api
+      .currentVersion()
+      .then(setAppVersion)
+      .catch(() => undefined);
   }, []);
 
   // Live preview: while the owner is picking a colour, the header and the
@@ -461,7 +471,7 @@ export function SettingsPage() {
           <div className="stack">
             <div className="row row--between">
               <span className="muted">الإصدار</span>
-              <Badge kind="brand">1.0.0</Badge>
+              <Badge kind="brand">{appVersion || "—"}</Badge>
             </div>
             <div className="row row--between">
               <span className="muted">التخزين</span>

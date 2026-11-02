@@ -39,17 +39,17 @@ In `src-tauri/tauri.conf.json`:
       "dialog": false,          // the app renders its own Arabic dialog
       "pubkey": "<the public key printed by the script>",
       "endpoints": [
-        "https://github.com/<OWNER>/<REPO>/releases/latest/download/latest.json"
+        "https://github.com/ahmedshaban022/ua-windows-invoices/releases/latest/download/latest.json"
       ]
     }
   }
 }
 ```
 
-Replace `<OWNER>/<REPO>` with the real repository. The endpoint must point at
-the `latest.json` file that the release workflow publishes.
+The endpoint must point at the `latest.json` file that the release workflow
+publishes.
 
-Until the placeholders are replaced the updater simply reports that it cannot
+Until the public key is replaced the updater simply reports that it cannot
 reach the update source; the rest of the application is unaffected.
 
 ---
@@ -77,8 +77,12 @@ In the GitHub repository: **Settings → Secrets and variables → Actions**.
 git add -A
 git commit -m "release: 1.0.1"
 git tag v1.0.1
-git push origin main --tags
+git push origin feat/invoice-desktop-app --tags
 ```
+
+> The tag **must** be lowercase `v` and the version — the workflow fails
+> otherwise. This repository's default branch is `feat/invoice-desktop-app`;
+> there is no `main` branch to push to.
 
 The `release.yml` workflow then:
 
@@ -88,15 +92,28 @@ The `release.yml` workflow then:
 4. uploads `latest.json`, the `.nsis.zip` and the installer `.exe`,
 5. creates a **draft** release (review it, then publish it).
 
-Publishing the draft makes the new version visible to the updater.
+### Publishing the draft — the step that makes the update visible
+
+A **draft** release is invisible to the updater: the endpoint reads
+`releases/latest/download/latest.json`, and `latest` only ever points at a
+**published** release. So after the workflow finishes:
+
+1. open the repository → **Releases** → the new draft,
+2. check the assets are there (`latest.json`, the `.nsis.zip`, the installer),
+3. click **Publish release**.
+
+Only then does a client see the new version. Nothing else is needed — the app
+checks on every launch and shows the banner.
 
 ### Verifying the update locally first
 
 ```powershell
 # After the draft is published
 npm run tauri dev
-# Settings → التحديثات  (or the update banner in the sidebar)
 ```
+
+The banner appears in the sidebar when a newer version is published. The
+installed version is shown in **الإعدادات → عن البرنامج**.
 
 ---
 
