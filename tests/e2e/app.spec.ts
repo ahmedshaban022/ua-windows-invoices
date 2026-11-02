@@ -20,6 +20,22 @@ async function fillLine(
   await page.getByLabel("سعر الوحدة").first().fill(price);
 }
 
+/**
+ * Pick an option from one of the application's dropdowns.
+ *
+ * The dropdowns are drawn by the application itself, not by the operating
+ * system, so the trigger is opened first and the option is clicked in the
+ * listbox that appears.
+ */
+async function chooseOption(
+  page: import("@playwright/test").Page,
+  trigger: string,
+  option: string,
+) {
+  await page.locator(trigger).click();
+  await page.locator(".select__list").getByRole("option", { name: option }).click();
+}
+
 test.describe("برنامج الفواتير", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
@@ -227,7 +243,7 @@ test.describe("برنامج الفواتير", () => {
     await page.getByLabel("اسم العميل").fill("عميل تجريبي");
     await fillLine(page, "منتج تجريبي", "2", "50.00");
 
-    await page.locator("#discount-kind").selectOption("percent");
+    await chooseOption(page, "#discount-kind", "نسبة %");
     await page.getByLabel("قيمة الخصم").fill("10");
 
     // 2 × 50.00 = 100.00, minus 10% = 90.00.
@@ -254,7 +270,7 @@ test.describe("برنامج الفواتير", () => {
     await page.getByLabel("اسم العميل").fill("عميل تجريبي");
     await fillLine(page, "منتج تجريبي", "2", "50.00");
 
-    await page.locator("#discount-kind").selectOption("percent");
+    await chooseOption(page, "#discount-kind", "نسبة %");
     await page.getByLabel("قيمة الخصم").fill("120");
     await expect(page.locator(".totals__hint")).toHaveText("نسبة الخصم لا يمكن أن تتجاوز 100%");
 
@@ -267,7 +283,7 @@ test.describe("برنامج الفواتير", () => {
     await page.getByLabel("اسم العميل").fill("عميل تجريبي");
     await fillLine(page, "منتج تجريبي", "2", "50.00");
 
-    await page.locator("#discount-kind").selectOption("amount");
+    await chooseOption(page, "#discount-kind", "مبلغ");
     await page.getByLabel("قيمة الخصم").fill("25.00");
 
     const totals = page.locator(".totals");
@@ -279,5 +295,42 @@ test.describe("برنامج الفواتير", () => {
     const table = page.locator(".invoice-page .invoice-table").first();
     await expect(table.locator(".invoice-table__totals--discount")).toContainText("25.00");
     await expect(table.locator(".invoice-table__totals--grand")).toContainText("75.00");
+  });
+
+  test("يرسم قوائم الاختيار بواجهة التطبيق لا بواجهة ويندوز", async ({ page }) => {
+    // A native <select> is drawn by the operating system, so the application
+    // must not use one anywhere.
+    expect(await page.locator("select").count()).toBe(0);
+
+    await page.getByRole("link", { name: "الإعدادات" }).click();
+    await expect(page.getByRole("heading", { name: "الإعدادات" })).toBeVisible();
+
+    const currency = page.locator("#settings-currency");
+    await expect(currency).toHaveText(/جنيه مصري \(EGP\)/);
+
+    // The list is the application's own listbox, in the app's own surfaces.
+    await currency.click();
+    const list = page.locator(".select__list");
+    await expect(list).toBeVisible();
+    await expect(list.getByRole("option")).toHaveCount(5);
+
+    const surface = await list.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(surface).toBe("rgb(255, 255, 255)");
+
+    // The list is drawn at the body level, so no scrolling container (the
+    // body of a dialog, for instance) can cut it off.
+    expect(await list.evaluate((el) => el.parentElement?.tagName)).toBe("BODY");
+
+    // The picked option is marked and the trigger shows it.
+    await list.getByRole("option", { name: "دولار أمريكي (USD)" }).click();
+    await expect(currency).toHaveText(/دولار أمريكي \(USD\)/);
+    await expect(page.locator(".select__list")).toHaveCount(0);
+
+    // The keyboard alone is enough to pick an option.
+    await currency.focus();
+    await currency.press("ArrowDown");
+    await expect(page.locator(".select__list")).toBeVisible();
+    await currency.press("Enter");
+    await expect(currency).toHaveText(/دولار أمريكي \(USD\)/);
   });
 });

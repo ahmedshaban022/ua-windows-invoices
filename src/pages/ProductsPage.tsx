@@ -12,6 +12,7 @@ import {
   Loading,
   Modal,
   Pagination,
+  Select,
 } from "../components/ui";
 import * as api from "../lib/api";
 import { formatMinor } from "../lib/format";
@@ -471,81 +472,79 @@ function ExcelImportModal({
       {sheet ? (
         <>
           <div className="grid grid--3">
-            <Field label="ورقة العمل">
-              <select
-                className="select"
+            <Field label="ورقة العمل" htmlFor="import-sheet">
+              <Select
+                id="import-sheet"
                 value={sheetName ?? ""}
-                onChange={(event) => {
-                  setSheetName(event.target.value);
+                onChange={(value) => {
+                  setSheetName(value);
                   setPreview(null);
                 }}
-              >
-                {sheet.sheets.map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name} ({item.rowCount})
-                  </option>
-                ))}
-              </select>
+                options={sheet.sheets.map((item) => ({
+                  value: item.name,
+                  label: `${item.name} (${item.rowCount})`,
+                }))}
+              />
             </Field>
-            <Field label="عمود اسم الصنف">
-              <select
-                className="select"
-                value={mapping?.name ?? ""}
-                onChange={(event) =>
+            <Field label="عمود اسم الصنف" htmlFor="import-name-column">
+              <Select
+                id="import-name-column"
+                value={mapping?.name === undefined ? "" : String(mapping.name)}
+                onChange={(value) =>
                   setMapping({
-                    name: Number(event.target.value),
+                    name: Number(value),
                     price: mapping?.price ?? 0,
                     sku: mapping?.sku ?? null,
                   })
                 }
-              >
-                {columnOptions.map((header, index) => (
-                  <option key={index} value={index}>
-                    {header || `عمود ${index + 1}`}
-                  </option>
-                ))}
-              </select>
+                options={columnOptions.map((header, index) => ({
+                  value: String(index),
+                  label: header || `عمود ${index + 1}`,
+                }))}
+              />
             </Field>
-            <Field label="عمود السعر">
-              <select
-                className="select"
-                value={mapping?.price ?? ""}
-                onChange={(event) =>
+            <Field label="عمود السعر" htmlFor="import-price-column">
+              <Select
+                id="import-price-column"
+                value={mapping?.price === undefined ? "" : String(mapping.price)}
+                onChange={(value) =>
                   setMapping({
                     name: mapping?.name ?? 0,
-                    price: Number(event.target.value),
+                    price: Number(value),
                     sku: mapping?.sku ?? null,
                   })
                 }
-              >
-                {columnOptions.map((header, index) => (
-                  <option key={index} value={index}>
-                    {header || `عمود ${index + 1}`}
-                  </option>
-                ))}
-              </select>
+                options={columnOptions.map((header, index) => ({
+                  value: String(index),
+                  label: header || `عمود ${index + 1}`,
+                }))}
+              />
             </Field>
           </div>
 
-          <Field label="عمود الرمز (SKU)" hint="اتركه فارغًا إذا لم يوجد عمود للرمز">
-            <select
-              className="select"
-              value={mapping?.sku ?? ""}
-              onChange={(event) =>
+          <Field
+            label="عمود الرمز (SKU)"
+            hint="اتركه فارغًا إذا لم يوجد عمود للرمز"
+            htmlFor="import-sku-column"
+          >
+            <Select
+              id="import-sku-column"
+              value={mapping?.sku === null || mapping?.sku === undefined ? "" : String(mapping.sku)}
+              onChange={(value) =>
                 setMapping({
                   name: mapping?.name ?? 0,
                   price: mapping?.price ?? 0,
-                  sku: event.target.value === "" ? null : Number(event.target.value),
+                  sku: value === "" ? null : Number(value),
                 })
               }
-            >
-              <option value="">بدون رمز</option>
-              {columnOptions.map((header, index) => (
-                <option key={index} value={index}>
-                  {header || `عمود ${index + 1}`}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "بدون رمز" },
+                ...columnOptions.map((header, index) => ({
+                  value: String(index),
+                  label: header || `عمود ${index + 1}`,
+                })),
+              ]}
+            />
           </Field>
         </>
       ) : null}
@@ -559,16 +558,17 @@ function ExcelImportModal({
             <Badge kind="danger">غير صالح: {preview.invalid}</Badge>
           </div>
 
-          <Field label="كيف نتعامل مع الصفقات المطابقة؟">
-            <select
-              className="select"
+          <Field label="كيف نتعامل مع الصفقات المطابقة؟" htmlFor="import-strategy">
+            <Select
+              id="import-strategy"
               value={strategy}
-              onChange={(event) => setStrategy(event.target.value as MatchStrategy)}
-            >
-              <option value="skipMatched">تجاهلها (لا تعديل)</option>
-              <option value="updateConfirmed">تحديث المطابق بالرمز فقط</option>
-              <option value="addNewOnly">إضافة الجديد فقط</option>
-            </select>
+              onChange={(value) => setStrategy(value as MatchStrategy)}
+              options={[
+                { value: "skipMatched", label: "تجاهلها (لا تعديل)" },
+                { value: "updateConfirmed", label: "تحديث المطابق بالرمز فقط" },
+                { value: "addNewOnly", label: "إضافة الجديد فقط" },
+              ]}
+            />
           </Field>
 
           <div className="table-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>

@@ -1,5 +1,15 @@
 /** The shared UI kit. Every screen is built from these primitives. */
-import { useEffect, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { Check, ChevronDown } from "lucide-react";
 
 import { dismissToast, useToasts } from "../state/toast";
 
@@ -73,6 +83,212 @@ export function Field({ label, hint, error, children, htmlFor }: FieldProps) {
       {children}
       {error ? <span className="field__error">{error}</span> : null}
       {!error && hint ? <span className="field__hint">{hint}</span> : null}
+    </div>
+  );
+}
+
+/* ----------------------------------------------------------------- selects */
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface SelectProps {
+  /** The value of the selected option. */
+  value: string;
+  /** The options, in the order they are listed in. */
+  options: SelectOption[];
+  /** Called with the value of the picked option. */
+  onChange: (value: string) => void;
+  id?: string;
+  className?: string;
+  disabled?: boolean;
+  /** Shown when the value matches no option. */
+  placeholder?: string;
+  ariaLabel?: string;
+}
+
+/**
+ * The dropdown (listbox) of the application.
+ *
+ * A native `<select>` cannot be styled: Windows draws its popup itself, so
+ * the list always looks like the operating system instead of like the app.
+ * This component draws the whole thing — the trigger and the popup — with the
+ * application's own surfaces, and keeps the keyboard and screen-reader
+ * behaviour a listbox is expected to have.
+ */
+export function Select({
+  value,
+  options,
+  onChange,
+  id,
+  className = "",
+  disabled = false,
+  placeholder = "—",
+  ariaLabel,
+}: SelectProps) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [placement, setPlacement] = useState<CSSProperties | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const listId = useId();
+
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  const selected = selectedIndex >= 0 ? options[selectedIndex] : null;
+
+  // Close the list when clicking elsewhere. The list itself lives at the body
+  // level, so it has to be excluded as well.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (listRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  /**
+   * The list is drawn at the body level, so that no scrolling container (the
+   * body of a dialog, for instance) can cut it off. That means its position
+   * has to be measured and kept in sync with the field.
+   */
+  const place = useCallback(() => {
+    const trigger = buttonRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom;
+    const needed = Math.min(280, options.length * 38 + 8);
+    const up = below < needed && rect.top > below;
+    setPlacement(
+      up
+        ? { bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width }
+        : { top: rect.bottom + 4, left: rect.left, width: rect.width },
+    );
+  }, [options.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    const onViewportChange = () => place();
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
+    return () => {
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
+    };
+  }, [open, place]);
+
+  // Keep the highlighted option inside the scroll area.
+  useEffect(() => {
+    if (!open) return;
+    const list = listRef.current;
+    const option = list?.children[active] as HTMLElement | undefined;
+    option?.scrollIntoView({ block: "nearest" });
+  }, [open, active]);
+
+  const openList = () => {
+    if (disabled) return;
+    setActive(selectedIndex >= 0 ? selectedIndex : 0);
+    setOpen(true);
+  };
+
+  const choose = (option: SelectOption) => {
+    onChange(option.value);
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (!open) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter") {
+        event.preventDefault();
+        openList();
+      }
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((index) => Math.min(index + 1, options.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActive(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActive(options.length - 1);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (options[active]) choose(options[active]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+      buttonRef.current?.focus();
+    } else if (event.key === "Tab") {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className={`select ${className}`.trim()} ref={containerRef}>
+      <button
+        type="button"
+        id={id}
+        ref={buttonRef}
+        className="select__trigger"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-haspopup="listbox"
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => (open ? setOpen(false) : openList())}
+        onKeyDown={onKeyDown}
+      >
+        <span className="select__value">{selected ? selected.label : placeholder}</span>
+        <ChevronDown className="select__chevron" size={16} aria-hidden="true" />
+      </button>
+
+      {open && placement
+        ? createPortal(
+            <ul
+              className="select__list"
+              style={placement}
+              id={listId}
+              role="listbox"
+              ref={listRef}
+              aria-activedescendant={`${listId}-${active}`}
+            >
+              {options.map((option, index) => (
+                <li key={option.value} id={`${listId}-${index}`}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={option.value === value}
+                    className={`select__option ${index === active ? "select__option--active" : ""} ${
+                      option.value === value ? "select__option--selected" : ""
+                    }`.trim()}
+                    onMouseEnter={() => setActive(index)}
+                    onClick={() => choose(option)}
+                  >
+                    <span className="select__option-label">{option.label}</span>
+                    {option.value === value ? (
+                      <Check className="select__check" size={15} aria-hidden="true" />
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

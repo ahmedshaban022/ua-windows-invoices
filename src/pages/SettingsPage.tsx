@@ -10,7 +10,7 @@ import {
   Upload,
 } from "lucide-react";
 
-import { Alert, Badge, Button, Card, Field, IconButton, Loading } from "../components/ui";
+import { Alert, Badge, Button, Card, Field, IconButton, Loading, Select } from "../components/ui";
 import * as api from "../lib/api";
 import { applyBrandColor, DEFAULT_BRAND_COLOR } from "../lib/brand";
 import { formatBytes, formatTimestamp } from "../lib/format";
@@ -285,31 +285,24 @@ export function SettingsPage() {
 
         <Card title="الفاتورة">
           <div className="stack">
-            <Field label="العملة">
-              <select
-                className="select"
+            <Field label="العملة" htmlFor="settings-currency">
+              <Select
+                id="settings-currency"
                 value={currencyCode}
-                onChange={(event) => setCurrencyCode(event.target.value)}
-              >
-                {CURRENCIES.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {item.label} ({item.code})
-                  </option>
-                ))}
-              </select>
+                onChange={setCurrencyCode}
+                options={CURRENCIES.map((item) => ({
+                  value: item.code,
+                  label: `${item.label} (${item.code})`,
+                }))}
+              />
             </Field>
-            <Field label="صيغة التاريخ">
-              <select
-                className="select"
+            <Field label="صيغة التاريخ" htmlFor="settings-date-format">
+              <Select
+                id="settings-date-format"
                 value={dateFormat}
-                onChange={(event) => setDateFormat(event.target.value)}
-              >
-                {DATE_FORMATS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+                onChange={setDateFormat}
+                options={DATE_FORMATS.map((item) => ({ value: item.value, label: item.label }))}
+              />
             </Field>
             <Field label="الشعار" hint="ملف SVG فقط — يُفضّلخلو من النصوص">
               <div className="btn-row">

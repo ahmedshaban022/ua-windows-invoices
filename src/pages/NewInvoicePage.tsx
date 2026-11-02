@@ -4,7 +4,7 @@ import { Eye, Plus, Printer, Save, Trash2 } from "lucide-react";
 
 import { InvoicePreview } from "../components/InvoicePreview";
 import { ProductCombobox } from "../components/ProductCombobox";
-import { Alert, Button, Card, Field, IconButton, Loading, Modal } from "../components/ui";
+import { Alert, Button, Card, Field, IconButton, Loading, Modal, Select } from "../components/ui";
 import * as api from "../lib/api";
 import {
   formatMinor,
@@ -510,15 +510,16 @@ export function NewInvoicePage() {
               <label className="totals__label" htmlFor="discount-kind">
                 الخصم
               </label>
-              <select
+              <Select
                 id="discount-kind"
-                className="select totals__select"
+                className="totals__select"
                 value={discountKind}
-                onChange={(event) => setDiscountKind(event.target.value as DiscountKind)}
-              >
-                <option value="amount">مبلغ</option>
-                <option value="percent">نسبة %</option>
-              </select>
+                onChange={(value) => setDiscountKind(value as DiscountKind)}
+                options={[
+                  { value: "amount", label: "مبلغ" },
+                  { value: "percent", label: "نسبة %" },
+                ]}
+              />
               <input
                 id="discount-value"
                 className="input input--numeric totals__discount-input"
