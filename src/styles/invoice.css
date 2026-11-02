@@ -212,13 +212,6 @@
   font-size: 12pt;
 }
 
-.invoice-words {
-  margin-top: 6px;
-  text-align: end;
-  font-size: 9.5pt;
-  color: #52606d;
-}
-
 /* Notes & footer ---------------------------------------------------------- */
 .invoice-notes {
   margin-top: 14px;

@@ -390,7 +390,6 @@ function buildDocument(
         ? formatPercent(computed.discountValue)
         : null,
     totalDisplay: formatMinor(computed.totalMinor, settings.currencyExponent),
-    totalWords: `${formatMinor(computed.totalMinor, settings.currencyExponent)} جنيه`,
   };
 }
 

@@ -213,7 +213,6 @@ export interface InvoiceDocument {
   /** The discount rate, e.g. "10%". Null for a fixed-amount discount. */
   discountRateDisplay: string | null;
   totalDisplay: string;
-  totalWords: string;
 }
 
 export interface ColumnMapping {

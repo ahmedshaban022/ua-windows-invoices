@@ -188,8 +188,6 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
         </tbody>
       </table>
 
-      {isLast ? <div className="invoice-words">الإجمالي كتابةً: {document.totalWords}</div> : null}
-
       {isLast ? (
         <>
           {document.notes ? (

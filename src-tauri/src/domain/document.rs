@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::invoice::{ComputedInvoice, SellerSnapshot};
 use crate::domain::money::Currency;
-use crate::domain::words::amount_in_words;
 use crate::services::invoicing::{Invoice, InvoiceStatus};
 
 /// One rendered invoice line.
@@ -67,8 +66,6 @@ pub struct InvoiceDocument {
     pub discount_rate_display: Option<String>,
     /// Formatted invoice total: the subtotal minus the discount.
     pub total_display: String,
-    /// The total written out in Arabic words.
-    pub total_words: String,
 }
 
 /// Render a percentage stored as hundredths of a percent, e.g. 1050 -> "10.5%".
@@ -126,7 +123,6 @@ impl InvoiceDocument {
             discount_rate_display: (has_discount && invoice.discount_kind == "percent")
                 .then(|| format_percent(invoice.discount_value)),
             total_display: currency.format_minor(invoice.total_minor),
-            total_words: amount_in_words(invoice.total_minor, currency),
         }
     }
 
@@ -179,7 +175,6 @@ impl InvoiceDocument {
             discount_rate_display: (has_discount && computed.discount_kind == "percent")
                 .then(|| format_percent(computed.discount_value)),
             total_display: currency.format_minor(computed.total_minor),
-            total_words: amount_in_words(computed.total_minor, currency),
         }
     }
 }
@@ -252,7 +247,6 @@ mod tests {
         assert_eq!(document.discount_rate_display, None);
         assert_eq!(document.lines[0].quantity_display, "2");
         assert_eq!(document.lines[0].unit_price_display, "25.00");
-        assert!(document.total_words.contains("خمسون"));
         assert!(document.is_draft);
         let _ = open_in_memory().unwrap();
     }
@@ -288,7 +282,5 @@ mod tests {
         assert_eq!(document.discount_display.as_deref(), Some("5.00"));
         assert_eq!(document.discount_rate_display.as_deref(), Some("10%"));
         assert_eq!(document.total_display, "45.00");
-        // The words describe the amount that is actually due.
-        assert!(document.total_words.contains("خمسة وأربعون"));
     }
 }
