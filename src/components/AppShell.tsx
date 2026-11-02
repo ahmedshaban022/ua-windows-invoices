@@ -43,21 +43,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar__brand">
-          {logo ? (
-            <div
-              aria-hidden="true"
-              dangerouslySetInnerHTML={{ __html: logo }}
-              style={{ height: 34, display: "flex", alignItems: "center" }}
-            />
-          ) : (
-            <Archive size={26} />
-          )}
+          {/* The company name sits above the logo, on its own line. */}
           {companyName ? (
-            <div>
+            <div className="sidebar__brand-text">
               <div className="sidebar__brand-name">{companyName}</div>
               <div className="sidebar__brand-sub">برنامج الفواتير</div>
             </div>
           ) : null}
+          {logo ? (
+            <div
+              className="sidebar__brand-logo"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: logo }}
+            />
+          ) : (
+            <Archive size={26} />
+          )}
         </div>
 
         <nav className="sidebar__section" aria-label="التنقل الرئيسي">

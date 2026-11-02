@@ -179,6 +179,14 @@ test.describe("برنامج الفواتير", () => {
     await expect(page.locator(".sidebar__brand-name")).toHaveText("شركة الأبنودي");
     await expect(page.locator(".sidebar__brand-sub")).toHaveText("برنامج الفواتير");
     await expect(page.locator(".topbar__meta")).toHaveText("EGP — شركة الأبنودي");
+
+    // The name sits above the logo, not beside it, and both start at the
+    // same edge of the sidebar.
+    const name = await page.locator(".sidebar__brand-name").boundingBox();
+    const logo = await page.locator(".sidebar__brand-logo").boundingBox();
+    if (!name || !logo) throw new Error("the sidebar brand is not rendered");
+    expect(name.y + name.height).toBeLessThanOrEqual(logo.y + 1);
+    expect(Math.abs(name.x + name.width - (logo.x + logo.width))).toBeLessThanOrEqual(2);
   });
 
   test("يغيّر لون الشريط العلوي مع لون العلامة", async ({ page }) => {

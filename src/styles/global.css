@@ -117,11 +117,24 @@ a:hover {
   overflow-y: auto;
 }
 
+/* The company name sits above the logo, on its own line. */
 .sidebar__brand {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 10px;
   padding: 6px 8px 18px;
+}
+
+.sidebar__brand-text {
+  max-width: 100%;
+}
+
+.sidebar__brand-logo {
+  height: 34px;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .sidebar__brand svg {
