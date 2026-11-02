@@ -47,10 +47,9 @@ In `src-tauri/tauri.conf.json`:
 ```
 
 The endpoint must point at the `latest.json` file that the release workflow
-publishes.
-
-Until the public key is replaced the updater simply reports that it cannot
-reach the update source; the rest of the application is unaffected.
+publishes. The public key in the repository is the one that matches the private
+key in `%USERPROFILE%\.tauri\invoice-updater.key`; if the key is ever rotated,
+both values have to be replaced together.
 
 ---
 
@@ -70,13 +69,13 @@ In the GitHub repository: **Settings → Secrets and variables → Actions**.
 ## 4. Publish a release
 
 ```powershell
-# 1. Bump the version in src-tauri/tauri.conf.json
-#    "version": "1.0.1"
+# 1. Bump the version in src-tauri/tauri.conf.json (and Cargo.toml)
+#    "version": "1.1.0"
 
 # 2. Commit and tag
 git add -A
-git commit -m "release: 1.0.1"
-git tag v1.0.1
+git commit -m "release: 1.1.0"
+git tag v1.1.0
 git push origin feat/invoice-desktop-app --tags
 ```
 
@@ -88,9 +87,18 @@ The `release.yml` workflow then:
 
 1. checks that the tag matches the version in `tauri.conf.json`,
 2. builds the NSIS installer,
-3. signs the updater artifacts with the private key from the secret,
-4. uploads `latest.json`, the `.nsis.zip` and the installer `.exe`,
+3. signs the installer with the private key from the secret (`.exe.sig`),
+4. uploads the installer, its signature and `latest.json`,
 5. creates a **draft** release (review it, then publish it).
+
+### Where `latest.json` comes from
+
+`latest.json` is **not** produced by `tauri build`. It is written by
+`tauri-apps/tauri-action` from the assets that were uploaded to the release, so
+it always matches the installer that was actually published. Its
+`windows-x86_64` entry points at the signed `.exe` and carries the matching
+signature, which is exactly what the v2 updater plugin expects — the plugin
+installs a plain NSIS `.exe` directly, so no `.nsis.zip` is needed.
 
 ### Publishing the draft — the step that makes the update visible
 
@@ -99,7 +107,7 @@ A **draft** release is invisible to the updater: the endpoint reads
 **published** release. So after the workflow finishes:
 
 1. open the repository → **Releases** → the new draft,
-2. check the assets are there (`latest.json`, the `.nsis.zip`, the installer),
+2. check the assets are there (`latest.json`, the installer, the `.sig`),
 3. click **Publish release**.
 
 Only then does a client see the new version. Nothing else is needed — the app

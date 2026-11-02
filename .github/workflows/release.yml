@@ -61,10 +61,6 @@ jobs:
           releaseBody: "See the commit history for the changes in this release."
           releaseDraft: true
           prerelease: false
+          # The action uploads the installer, its `.sig` and writes `latest.json`.
+          includeUpdaterJson: true
           args: --target x86_64-pc-windows-msvc
-
-      - name: Upload the updater manifest
-        uses: softprops/action-gh-release@v2
-        with:
-          files: src-tauri/target/release/bundle/nsis/*.exe
-          tag_name: ${{ github.ref_name }}
