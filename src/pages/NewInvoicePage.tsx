@@ -9,12 +9,15 @@ import * as api from "../lib/api";
 import {
   formatMinor,
   formatThousandths,
+  normalizeDigits,
   parseAmount,
   parseQuantity,
   todayIso,
 } from "../lib/format";
 import type {
   ComputedInvoice,
+  DiscountInput,
+  DiscountKind,
   InvoiceDocument as DocumentModel,
   InvoiceInput,
   InvoiceLineInput,
@@ -43,6 +46,50 @@ function emptyLine(): DraftLine {
   return { key: nextKey(), productId: null, name: "", quantity: "1", unitPrice: "" };
 }
 
+/**
+ * The problem with the typed discount that can be seen without the totals,
+ * or `null` when the value can be applied at all.
+ */
+function discountShapeProblem(discount: DiscountInput, exponent: number): string | null {
+  const value = discount.value.trim();
+  if (value.length === 0) return null;
+
+  if (discount.kind === "percent") {
+    const cleaned = normalizeDigits(value).replace(/٫/g, ".").replace(/,/g, "");
+    if (!/^\d*\.?\d*$/.test(cleaned)) return "نسبة الخصم غير صحيحة";
+    const percent = Number(cleaned);
+    if (!Number.isFinite(percent)) return "نسبة الخصم غير صحيحة";
+    if (percent > 100) return "نسبة الخصم لا يمكن أن تتجاوز 100%";
+    return null;
+  }
+
+  if (parseAmount(value, exponent) === null) return "قيمة الخصم غير صحيحة";
+  return null;
+}
+
+/**
+ * The problem with the typed discount, or `null` when it can be used.
+ *
+ * A percentage may not exceed 100%, and an amount may not exceed the
+ * subtotal — a discount larger than the invoice itself is never what the
+ * user meant.
+ */
+function discountProblem(
+  discount: DiscountInput,
+  subtotalMinor: number,
+  exponent: number,
+): string | null {
+  const shape = discountShapeProblem(discount, exponent);
+  if (shape) return shape;
+  if (discount.kind === "amount" && discount.value.trim().length > 0) {
+    const amount = parseAmount(discount.value.trim(), exponent);
+    if (amount !== null && amount > subtotalMinor) {
+      return "الخصم أكبر من إجمالي الفاتورة";
+    }
+  }
+  return null;
+}
+
 export function NewInvoicePage() {
   const navigate = useNavigate();
   const settings = useSettings((state) => state.settings);
@@ -58,6 +105,8 @@ export function NewInvoicePage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState<string[]>([]);
+  const [discountKind, setDiscountKind] = useState<DiscountKind>("amount");
+  const [discountValue, setDiscountValue] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
   const [computed, setComputed] = useState<ComputedInvoice | null>(null);
   const [preview, setPreview] = useState<DocumentModel | null>(null);
@@ -92,6 +141,8 @@ export function NewInvoicePage() {
       customerPhone?: string;
       notes?: string;
       terms?: string[];
+      discountKind?: DiscountKind;
+      discountValue?: string;
       lines?: DraftLine[];
     } | null;
     if (!data) return;
@@ -100,6 +151,8 @@ export function NewInvoicePage() {
     if (data.customerPhone) setCustomerPhone(data.customerPhone);
     if (data.notes) setNotes(data.notes);
     if (data.terms && data.terms.length > 0) setTerms(data.terms);
+    if (data.discountKind) setDiscountKind(data.discountKind);
+    if (data.discountValue) setDiscountValue(data.discountValue);
     if (data.lines && data.lines.length > 0) setLines(data.lines);
     setRecovered(null);
     toast("تم استعادة المسودة غير المحفوظة", "success");
@@ -126,6 +179,23 @@ export function NewInvoicePage() {
     [lines],
   );
 
+  /** The discount the user typed, as the Rust layer expects it. */
+  const discount = useMemo<DiscountInput>(
+    () => ({ kind: discountKind, value: discountValue.trim() }),
+    [discountKind, discountValue],
+  );
+
+  /**
+   * The discount the totals are computed with.
+   *
+   * A discount that cannot be applied at all is left out, so the totals stay
+   * live and the hint beside the field explains the problem.
+   */
+  const usableDiscount = useMemo<DiscountInput | null>(
+    () => (discountShapeProblem(discount, exponent) ? null : discount),
+    [discount, exponent],
+  );
+
   useEffect(() => {
     if (!hydrated.current) {
       hydrated.current = true;
@@ -140,7 +210,7 @@ export function NewInvoicePage() {
         return;
       }
       try {
-        const result = await api.previewInvoice(meaningful);
+        const result = await api.previewInvoice(meaningful, usableDiscount);
         if (!cancelled) setComputed(result);
       } catch {
         if (!cancelled) setComputed(null);
@@ -150,7 +220,7 @@ export function NewInvoicePage() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [lineInputs]);
+  }, [lineInputs, usableDiscount]);
 
   /* ----------------------------------------------- autosave the working copy */
   useEffect(() => {
@@ -158,6 +228,7 @@ export function NewInvoicePage() {
       const hasContent =
         customerName.trim().length > 0 ||
         notes.trim().length > 0 ||
+        discountValue.trim().length > 0 ||
         lines.some((line) => line.name.trim().length > 0);
       if (!hasContent) return;
       api
@@ -167,12 +238,14 @@ export function NewInvoicePage() {
           customerPhone,
           notes,
           terms,
+          discountKind,
+          discountValue,
           lines,
         })
         .catch(() => undefined);
     }, 900);
     return () => window.clearTimeout(handle);
-  }, [invoiceDate, customerName, customerPhone, notes, terms, lines]);
+  }, [invoiceDate, customerName, customerPhone, notes, terms, discountKind, discountValue, lines]);
 
   /* ------------------------------------------------------- document preview */
   useEffect(() => {
@@ -190,6 +263,7 @@ export function NewInvoicePage() {
           customerPhone: customerPhone || null,
           notes: notes || null,
           terms,
+          discount: usableDiscount,
           lines: lineInputs.filter((line) => line.name.trim().length > 0),
         });
         if (!cancelled) setPreview(document);
@@ -200,7 +274,16 @@ export function NewInvoicePage() {
     return () => {
       cancelled = true;
     };
-  }, [computed, invoiceDate, customerName, customerPhone, notes, terms, lineInputs]);
+  }, [
+    computed,
+    invoiceDate,
+    customerName,
+    customerPhone,
+    notes,
+    terms,
+    usableDiscount,
+    lineInputs,
+  ]);
 
   /* --------------------------------------------------------------- actions */
   const updateLine = (key: string, patch: Partial<DraftLine>) => {
@@ -259,6 +342,11 @@ export function NewInvoicePage() {
       toast("اكتب اسم العميل", "error");
       return false;
     }
+    const problem = discountProblem(discount, computed?.subtotalMinor ?? 0, exponent);
+    if (problem) {
+      toast(problem, "error");
+      return false;
+    }
     return true;
   };
 
@@ -268,6 +356,7 @@ export function NewInvoicePage() {
     customerPhone: customerPhone.trim() || null,
     notes: notes.trim() || null,
     terms,
+    discount,
     lines: lines
       .filter((line) => line.name.trim().length > 0)
       .map((line) => ({
@@ -326,6 +415,10 @@ export function NewInvoicePage() {
   if (!settings) return <Loading label="جارٍ تحميل الإعدادات…" />;
 
   const totalMinor = computed?.totalMinor ?? 0;
+  const subtotalMinor = computed?.subtotalMinor ?? 0;
+  const discountMinor = computed?.discountMinor ?? 0;
+  const hasDiscount = discountMinor > 0;
+  const discountHint = discountProblem(discount, subtotalMinor, exponent);
   const totalQuantity = formatThousandths(
     computed ? computed.lines.reduce((sum, line) => sum + line.quantityThousandths, 0) : 0,
   );
@@ -413,6 +506,42 @@ export function NewInvoicePage() {
         }
         footer={
           <div className="totals">
+            <div className="totals__row totals__row--discount">
+              <label className="totals__label" htmlFor="discount-kind">
+                الخصم
+              </label>
+              <select
+                id="discount-kind"
+                className="select totals__select"
+                value={discountKind}
+                onChange={(event) => setDiscountKind(event.target.value as DiscountKind)}
+              >
+                <option value="amount">مبلغ</option>
+                <option value="percent">نسبة %</option>
+              </select>
+              <input
+                id="discount-value"
+                className="input input--numeric totals__discount-input"
+                value={discountValue}
+                inputMode="decimal"
+                placeholder="0"
+                onChange={(event) => setDiscountValue(event.target.value)}
+                aria-label="قيمة الخصم"
+              />
+              {hasDiscount ? (
+                <span className="totals__stat">
+                  <span className="totals__label">قيمة الخصم</span>
+                  <span className="totals__value ltr">
+                    {formatMinor(discountMinor, exponent)} {currencyCode}
+                  </span>
+                </span>
+              ) : null}
+              {discountHint ? (
+                <span className="totals__hint" role="alert">
+                  {discountHint}
+                </span>
+              ) : null}
+            </div>
             <div className="totals__row">
               <div className="totals__stat">
                 <span className="totals__label">عدد البنود</span>
@@ -423,6 +552,14 @@ export function NewInvoicePage() {
                 <span className="totals__value ltr">{totalQuantity}</span>
               </div>
               <div className="spacer" />
+              {hasDiscount ? (
+                <div className="totals__stat">
+                  <span className="totals__label">المجموع</span>
+                  <span className="totals__value">
+                    {formatMinor(subtotalMinor, exponent)} {currencyCode}
+                  </span>
+                </div>
+              ) : null}
               <div className="totals__stat totals__stat--total">
                 <span className="totals__label">الإجمالي</span>
                 <span className="totals__value">

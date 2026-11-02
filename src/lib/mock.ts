@@ -8,9 +8,12 @@
  * The arithmetic mirrors the Rust domain layer exactly: money is an integer
  * count of minor units and quantities are integer thousandths.
  */
+import { normalizeDigits } from "./format";
 import type {
   AppSettings,
   ComputedInvoice,
+  DiscountInput,
+  DiscountKind,
   Invoice,
   InvoiceDocument,
   InvoiceFilter,
@@ -36,6 +39,7 @@ interface PreviewPayload {
   customerPhone?: string | null;
   notes?: string | null;
   terms?: string[];
+  discount?: DiscountInput | null;
   lines: InvoiceInput["lines"];
 }
 
@@ -209,7 +213,7 @@ function normalize(value: string): string {
 
 /** Parse a typed price into minor units (half-up). */
 function parsePrice(text: string, exponent = 2): number | null {
-  const cleaned = text.trim().replace(/٫/g, ".").replace(/[,\s]/g, "");
+  const cleaned = normalizeDigits(text).trim().replace(/٫/g, ".").replace(/[,\s]/g, "");
   if (!/^\d*\.?\d*$/.test(cleaned)) return null;
   const [intPart = "0", fracPart = ""] = cleaned.split(".");
   const intValue = Number(intPart || "0");
@@ -218,6 +222,32 @@ function parsePrice(text: string, exponent = 2): number | null {
   let minor = intValue * 10 ** exponent + Number(kept || "0");
   if (fracPart.length > exponent && Number(fracPart[exponent]) >= 5) minor += 1;
   return minor;
+}
+
+/** Parse a typed percentage into hundredths of a percent, e.g. "10.5" -> 1050. */
+function parsePercent(text: string): number | null {
+  const cleaned = normalizeDigits(text).trim().replace(/٫/g, ".").replace(/,/g, "");
+  if (cleaned.length === 0) return 0;
+  if (!/^\d*\.?\d*$/.test(cleaned)) return null;
+  const [intPart = "0", fracPart = ""] = cleaned.split(".");
+  const intValue = Number(intPart || "0");
+  if (!Number.isFinite(intValue)) return null;
+  const frac = (fracPart + "00").slice(0, 2);
+  return intValue * 100 + Number(frac);
+}
+
+/** Format hundredths of a percent, e.g. 1050 -> "10.5%". */
+function formatPercent(hundredths: number): string {
+  return `${percentText(hundredths)}%`;
+}
+
+/** Format hundredths of a percent as a plain decimal, e.g. 1050 -> "10.5". */
+function percentText(hundredths: number): string {
+  const major = Math.trunc(hundredths / 100);
+  const frac = hundredths % 100;
+  if (frac === 0) return `${major}`;
+  if (frac % 10 === 0) return `${major}.${frac / 10}`;
+  return `${major}.${String(frac).padStart(2, "0")}`;
 }
 
 /** Parse a typed quantity into integer thousandths. */
@@ -250,7 +280,44 @@ function formatThousandths(thousandths: number): string {
   return `${major}.${String(frac).padStart(3, "0")}`;
 }
 
-function computeLines(lines: InvoiceInput["lines"]): ComputedInvoice {
+/** A validated discount, mirroring the Rust domain layer. */
+interface AppliedDiscount {
+  kind: DiscountKind;
+  value: number;
+  amountMinor: number;
+}
+
+/**
+ * Validate the discount the user typed.
+ *
+ * An empty value means no discount. The amount never exceeds the subtotal,
+ * so the total can never go negative.
+ */
+function applyDiscount(
+  discount: DiscountInput | null | undefined,
+  subtotal: number,
+): AppliedDiscount {
+  const kind: DiscountKind = discount?.kind === "percent" ? "percent" : "amount";
+  const text = (discount?.value ?? "").trim();
+  if (text.length === 0) return { kind, value: 0, amountMinor: 0 };
+
+  if (kind === "percent") {
+    const percent = parsePercent(text);
+    if (percent === null) throw new Error("نسبة الخصم غير صحيحة");
+    if (percent > 10_000) throw new Error("نسبة الخصم لا يمكن أن تتجاوز 100%");
+    const amountMinor = Math.min(Math.floor((subtotal * percent + 5_000) / 10_000), subtotal);
+    return { kind, value: percent, amountMinor: Math.max(amountMinor, 0) };
+  }
+
+  const minor = parsePrice(text, state.settings.currencyExponent);
+  if (minor === null) throw new Error("قيمة الخصم غير صحيحة");
+  return { kind, value: minor, amountMinor: Math.max(Math.min(minor, subtotal), 0) };
+}
+
+function computeLines(
+  lines: InvoiceInput["lines"],
+  discount?: DiscountInput | null,
+): ComputedInvoice {
   const exponent = state.settings.currencyExponent;
   const computed = lines.map((line, index) => {
     const quantity = parseQuantity(line.quantity) ?? 0;
@@ -268,9 +335,15 @@ function computeLines(lines: InvoiceInput["lines"]): ComputedInvoice {
       sortOrder: index,
     };
   });
+  const subtotalMinor = computed.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+  const applied = applyDiscount(discount, subtotalMinor);
   return {
     lines: computed,
-    totalMinor: computed.reduce((sum, line) => sum + line.lineTotalMinor, 0),
+    subtotalMinor,
+    discountMinor: applied.amountMinor,
+    discountKind: applied.kind,
+    discountValue: applied.value,
+    totalMinor: subtotalMinor - applied.amountMinor,
     currencyCode: state.settings.currencyCode,
     currencyExponent: exponent,
   };
@@ -283,6 +356,7 @@ function buildDocument(
   isDraft: boolean,
 ): InvoiceDocument {
   const settings = state.settings;
+  const hasDiscount = computed.discountMinor > 0;
   return {
     invoiceNumber,
     isDraft,
@@ -307,6 +381,14 @@ function buildDocument(
       unitPriceDisplay: formatMinor(line.unitPriceMinor, settings.currencyExponent),
       lineTotalDisplay: formatMinor(line.lineTotalMinor, settings.currencyExponent),
     })),
+    subtotalDisplay: formatMinor(computed.subtotalMinor, settings.currencyExponent),
+    discountDisplay: hasDiscount
+      ? formatMinor(computed.discountMinor, settings.currencyExponent)
+      : null,
+    discountRateDisplay:
+      hasDiscount && computed.discountKind === "percent"
+        ? formatPercent(computed.discountValue)
+        : null,
     totalDisplay: formatMinor(computed.totalMinor, settings.currencyExponent),
     totalWords: `${formatMinor(computed.totalMinor, settings.currencyExponent)} جنيه`,
   };
@@ -317,7 +399,7 @@ function nowIso() {
 }
 
 function makeInvoice(input: InvoiceInput, status: "draft" | "issued"): Invoice {
-  const computed = computeLines(input.lines);
+  const computed = computeLines(input.lines, input.discount);
   const id = state.invoices.length + 1;
   const issued = status === "issued";
   const number = issued ? `INV-${String(state.sequence++).padStart(6, "0")}` : null;
@@ -341,6 +423,9 @@ function makeInvoice(input: InvoiceInput, status: "draft" | "issued"): Invoice {
       currencyExponent: state.settings.currencyExponent,
       dateFormat: state.settings.dateFormat,
     },
+    discountKind: computed.discountKind,
+    discountValue: computed.discountValue,
+    discountMinor: computed.discountMinor,
     totalMinor: computed.totalMinor,
     lines: computed.lines.map((line, index) => ({
       id: index + 1,
@@ -479,7 +564,8 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
 
     case "preview_invoice": {
       const lines = (args.lines ?? []) as InvoiceInput["lines"];
-      return Promise.resolve(computeLines(lines));
+      const discount = (args.discount ?? null) as DiscountInput | null;
+      return Promise.resolve(computeLines(lines, discount));
     }
     case "create_draft":
       return Promise.resolve(makeInvoice(args.input as InvoiceInput, "draft"));
@@ -488,11 +574,14 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
       const invoice = state.invoices.find((item) => item.id === id);
       if (!invoice) return Promise.reject(new Error("الفاتورة غير موجودة"));
       const input = args.input as InvoiceInput;
-      const computed = computeLines(input.lines);
+      const computed = computeLines(input.lines, input.discount);
       invoice.invoiceDate = input.invoiceDate;
       invoice.customerName = input.customerName;
       invoice.customerPhone = input.customerPhone ?? null;
       invoice.notes = input.notes ?? null;
+      invoice.discountKind = computed.discountKind;
+      invoice.discountValue = computed.discountValue;
+      invoice.discountMinor = computed.discountMinor;
       invoice.totalMinor = computed.totalMinor;
       invoice.lines = computed.lines.map((line, index) => ({
         id: index + 1,
@@ -570,6 +659,13 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
             customerPhone: source.customerPhone,
             notes: source.notes,
             terms: source.terms,
+            discount: {
+              kind: source.discountKind,
+              value:
+                source.discountKind === "percent"
+                  ? percentText(source.discountValue)
+                  : formatMinor(source.discountValue, state.settings.currencyExponent),
+            },
             lines: source.lines.map((line) => ({
               productId: line.productId,
               name: line.name,
@@ -603,7 +699,7 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
       const payload =
         (args as unknown as { payload: PreviewPayload }).payload ??
         (args as unknown as PreviewPayload);
-      const computed = computeLines(payload.lines ?? []);
+      const computed = computeLines(payload.lines ?? [], payload.discount ?? null);
       return Promise.resolve(
         buildDocument(
           payload.invoiceNumber,
@@ -613,6 +709,7 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
             customerPhone: payload.customerPhone ?? null,
             notes: payload.notes ?? null,
             terms: payload.terms ?? [],
+            discount: payload.discount ?? null,
             lines: payload.lines ?? [],
           },
           computed,
@@ -630,6 +727,13 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
           quantity: line.quantityDisplay,
           unitPrice: formatMinor(line.unitPriceMinor, state.settings.currencyExponent),
         })),
+        {
+          kind: invoice.discountKind,
+          value:
+            invoice.discountKind === "percent"
+              ? percentText(invoice.discountValue)
+              : formatMinor(invoice.discountValue, state.settings.currencyExponent),
+        },
       );
       return Promise.resolve(
         buildDocument(
@@ -640,6 +744,7 @@ export function mockInvoke(command: string, args: Record<string, unknown> = {}):
             customerPhone: invoice.customerPhone,
             notes: invoice.notes,
             terms: invoice.terms,
+            discount: null,
             lines: [],
           },
           computed,

@@ -44,29 +44,13 @@
 /* Header ------------------------------------------------------------------ */
 .invoice-head {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
+  flex-direction: column;
+  gap: 8px;
   padding-bottom: 12px;
   border-bottom: 2px solid var(--doc-brand, #0b68e6);
 }
 
-.invoice-head__logo {
-  flex: none;
-  max-width: 132px;
-  max-height: 56px;
-}
-
-.invoice-head__logo svg {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.invoice-head__seller {
-  flex: 1;
-  min-width: 0;
-}
-
+/* The company name sits above the logo, on its own line. */
 .invoice-head__company {
   font-size: 15pt;
   font-weight: 700;
@@ -74,10 +58,38 @@
   line-height: 1.3;
 }
 
+/* Start (logo) · center (title) · end (contact details).
+   The two side columns share the free space equally, so the title stays
+   exactly in the middle of the page whatever the logo and the details weigh. */
+.invoice-head__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.invoice-head__logo {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.invoice-head__logo svg {
+  width: 100%;
+  max-width: 132px;
+  max-height: 56px;
+  height: auto;
+  display: block;
+}
+
+.invoice-head__seller {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: end;
+}
+
 .invoice-head__meta {
   color: #52606d;
   font-size: 9.5pt;
-  margin-top: 2px;
 }
 
 .invoice-head__title {
@@ -215,6 +227,15 @@
 }
 
 .invoice-totals__label {
+  color: #52606d;
+}
+
+/* The discount row is muted so the grand total stays the focal point. */
+.invoice-totals__row--discount {
+  color: #52606d;
+}
+
+.invoice-totals__row--discount .invoice-totals__label {
   color: #52606d;
 }
 

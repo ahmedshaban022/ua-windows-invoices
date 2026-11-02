@@ -72,6 +72,13 @@ export interface Invoice {
   terms: string[];
   status: InvoiceStatus;
   sellerSnapshot: SellerSnapshot;
+  /** How the discount was expressed: "amount" or "percent". */
+  discountKind: DiscountKind;
+  /** The typed value: minor units for an amount, hundredths of a percent for a percentage. */
+  discountValue: number;
+  /** The discount that was applied, in minor units. */
+  discountMinor: number;
+  /** The amount due: the subtotal minus the discount. */
   totalMinor: number;
   lines: StoredLine[];
   deletedAt: string | null;
@@ -93,6 +100,16 @@ export interface InvoiceLineInput {
   unitPrice: string;
 }
 
+/** How a discount is expressed. */
+export type DiscountKind = "amount" | "percent";
+
+/** The discount the user types in the editor. */
+export interface DiscountInput {
+  kind: DiscountKind;
+  /** The value as typed, e.g. "250.00" or "10". */
+  value: string;
+}
+
 export interface InvoiceInput {
   invoiceDate: string;
   customerName: string;
@@ -100,6 +117,8 @@ export interface InvoiceInput {
   notes?: string | null;
   /** The custom terms (بنود) to print at the end of the invoice. */
   terms?: string[];
+  /** The discount applied to the whole invoice. */
+  discount?: DiscountInput | null;
   lines: InvoiceLineInput[];
 }
 
@@ -123,6 +142,14 @@ export interface ComputedLine {
 
 export interface ComputedInvoice {
   lines: ComputedLine[];
+  /** The sum of the line totals, before the discount. */
+  subtotalMinor: number;
+  /** The discount that was applied, in minor units. */
+  discountMinor: number;
+  discountKind: DiscountKind;
+  /** The typed value: minor units for an amount, hundredths of a percent for a percentage. */
+  discountValue: number;
+  /** The amount due: the subtotal minus the discount. */
   totalMinor: number;
   currencyCode: string;
   currencyExponent: number;
@@ -179,6 +206,12 @@ export interface InvoiceDocument {
   currencyNameAr: string;
   seller: DocumentSeller;
   lines: DocumentLine[];
+  /** The sum of the line totals, before the discount. */
+  subtotalDisplay: string;
+  /** The discount amount, formatted. Null when the invoice has no discount. */
+  discountDisplay: string | null;
+  /** The discount rate, e.g. "10%". Null for a fixed-amount discount. */
+  discountRateDisplay: string | null;
   totalDisplay: string;
   totalWords: string;
 }

@@ -32,6 +32,7 @@ import type {
   ProductSuggestion,
   SheetPreview,
   ColumnMapping,
+  DiscountInput,
   StoredDraft,
   UpdateStatus,
 } from "./types";
@@ -110,8 +111,8 @@ export const updateDraft = (id: number, input: InvoiceInput) =>
 
 export const issueInvoice = (id: number) => invoke<Invoice>("issue_invoice", { id });
 
-export const previewInvoice = (lines: InvoiceInput["lines"]) =>
-  invoke<ComputedInvoice>("preview_invoice", { lines });
+export const previewInvoice = (lines: InvoiceInput["lines"], discount?: DiscountInput | null) =>
+  invoke<ComputedInvoice>("preview_invoice", { lines, discount: discount ?? null });
 
 export const deleteInvoice = (id: number) => invoke<void>("delete_invoice", { id });
 
@@ -199,6 +200,7 @@ export const previewDocument = (payload: {
   customerPhone?: string | null;
   notes?: string | null;
   terms?: string[];
+  discount?: DiscountInput | null;
   lines: InvoiceInput["lines"];
 }) => invoke<InvoiceDocument>("preview_document", { payload });
 

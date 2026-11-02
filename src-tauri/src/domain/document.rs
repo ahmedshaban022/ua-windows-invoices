@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::domain::invoice::SellerSnapshot;
+use crate::domain::invoice::{ComputedInvoice, SellerSnapshot};
 use crate::domain::money::Currency;
 use crate::domain::words::amount_in_words;
 use crate::services::invoicing::{Invoice, InvoiceStatus};
@@ -58,10 +58,30 @@ pub struct InvoiceDocument {
     pub currency_name_ar: String,
     pub seller: DocumentSeller,
     pub lines: Vec<DocumentLine>,
-    /// Formatted invoice total.
+    /// The sum of the line totals, before the discount.
+    pub subtotal_display: String,
+    /// The discount amount, formatted. `None` when the invoice has no
+    /// discount.
+    pub discount_display: Option<String>,
+    /// The discount rate, e.g. "10%". `None` for a fixed-amount discount.
+    pub discount_rate_display: Option<String>,
+    /// Formatted invoice total: the subtotal minus the discount.
     pub total_display: String,
     /// The total written out in Arabic words.
     pub total_words: String,
+}
+
+/// Render a percentage stored as hundredths of a percent, e.g. 1050 -> "10.5%".
+fn format_percent(hundredths: i64) -> String {
+    let major = hundredths / 100;
+    let frac = hundredths % 100;
+    if frac == 0 {
+        format!("{major}%")
+    } else if frac % 10 == 0 {
+        format!("{major}.{}%", frac / 10)
+    } else {
+        format!("{major}.{frac:02}%")
+    }
 }
 
 impl InvoiceDocument {
@@ -78,6 +98,9 @@ impl InvoiceDocument {
                 line_total_display: currency.format_minor(line.line_total_minor),
             })
             .collect();
+
+        let subtotal_minor: i64 = invoice.lines.iter().map(|line| line.line_total_minor).sum();
+        let has_discount = invoice.discount_minor > 0;
 
         Self {
             invoice_number: invoice.display_number.clone(),
@@ -98,6 +121,10 @@ impl InvoiceDocument {
                 date_format: seller.date_format.clone(),
             },
             lines,
+            subtotal_display: currency.format_minor(subtotal_minor),
+            discount_display: has_discount.then(|| currency.format_minor(invoice.discount_minor)),
+            discount_rate_display: (has_discount && invoice.discount_kind == "percent")
+                .then(|| format_percent(invoice.discount_value)),
             total_display: currency.format_minor(invoice.total_minor),
             total_words: amount_in_words(invoice.total_minor, currency),
         }
@@ -110,7 +137,8 @@ impl InvoiceDocument {
         currency: &Currency,
         seller: &SellerSnapshot,
     ) -> Self {
-        let rendered = input
+        let computed = input.computed;
+        let rendered = computed
             .lines
             .iter()
             .map(|line| DocumentLine {
@@ -120,6 +148,8 @@ impl InvoiceDocument {
                 line_total_display: currency.format_minor(line.line_total_minor),
             })
             .collect();
+
+        let has_discount = computed.discount_minor > 0;
 
         Self {
             invoice_number: input.invoice_number.to_string(),
@@ -144,8 +174,12 @@ impl InvoiceDocument {
                 date_format: seller.date_format.clone(),
             },
             lines: rendered,
-            total_display: currency.format_minor(input.total_minor),
-            total_words: amount_in_words(input.total_minor, currency),
+            subtotal_display: currency.format_minor(computed.subtotal_minor),
+            discount_display: has_discount.then(|| currency.format_minor(computed.discount_minor)),
+            discount_rate_display: (has_discount && computed.discount_kind == "percent")
+                .then(|| format_percent(computed.discount_value)),
+            total_display: currency.format_minor(computed.total_minor),
+            total_words: amount_in_words(computed.total_minor, currency),
         }
     }
 }
@@ -159,15 +193,15 @@ pub struct PreviewInput<'a> {
     pub notes: Option<&'a str>,
     /// The custom terms (بنود) chosen for this invoice.
     pub terms: &'a [String],
-    pub lines: &'a [crate::domain::invoice::ComputedLine],
-    pub total_minor: i64,
+    /// The computed lines and totals, including the discount.
+    pub computed: &'a ComputedInvoice,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::open_in_memory;
-    use crate::domain::invoice::{compute_invoice, InvoiceLineInput};
+    use crate::domain::invoice::{compute_invoice, Discount, InvoiceLineInput};
 
     fn line(name: &str, qty: &str, price: &str) -> InvoiceLineInput {
         InvoiceLineInput {
@@ -178,11 +212,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn builds_preview_document_with_formatted_totals() {
-        let egp = Currency::egp();
-        let computed = compute_invoice(&[line("حليب", "2", "25.00")], &egp).unwrap();
-        let seller = SellerSnapshot {
+    fn seller() -> SellerSnapshot {
+        SellerSnapshot {
             company_name: "شركة النور".into(),
             company_phone: "0100".into(),
             company_address: "القاهرة".into(),
@@ -191,7 +222,15 @@ mod tests {
             currency_code: "EGP".into(),
             currency_exponent: 2,
             date_format: "dd/MM/yyyy".into(),
-        };
+        }
+    }
+
+    #[test]
+    fn builds_preview_document_with_formatted_totals() {
+        let egp = Currency::egp();
+        let computed =
+            compute_invoice(&[line("حليب", "2", "25.00")], &Discount::default(), &egp).unwrap();
+        let seller = seller();
 
         let document = InvoiceDocument::build_preview(
             PreviewInput {
@@ -201,18 +240,55 @@ mod tests {
                 customer_phone: None,
                 notes: None,
                 terms: &[],
-                lines: &computed.lines,
-                total_minor: computed.total_minor,
+                computed: &computed,
             },
             &egp,
             &seller,
         );
 
         assert_eq!(document.total_display, "50.00");
+        assert_eq!(document.subtotal_display, "50.00");
+        assert_eq!(document.discount_display, None);
+        assert_eq!(document.discount_rate_display, None);
         assert_eq!(document.lines[0].quantity_display, "2");
         assert_eq!(document.lines[0].unit_price_display, "25.00");
         assert!(document.total_words.contains("خمسون"));
         assert!(document.is_draft);
         let _ = open_in_memory().unwrap();
+    }
+
+    #[test]
+    fn the_preview_document_shows_the_discount_breakdown() {
+        let egp = Currency::egp();
+        let discount = Discount::parse(
+            Some(&crate::domain::invoice::DiscountInput {
+                kind: "percent".into(),
+                value: "10".into(),
+            }),
+            &egp,
+        )
+        .unwrap();
+        let computed = compute_invoice(&[line("حليب", "2", "25.00")], &discount, &egp).unwrap();
+
+        let document = InvoiceDocument::build_preview(
+            PreviewInput {
+                invoice_number: "مسودة",
+                invoice_date: "2026-10-29",
+                customer_name: "عميل",
+                customer_phone: None,
+                notes: None,
+                terms: &[],
+                computed: &computed,
+            },
+            &egp,
+            &seller(),
+        );
+
+        assert_eq!(document.subtotal_display, "50.00");
+        assert_eq!(document.discount_display.as_deref(), Some("5.00"));
+        assert_eq!(document.discount_rate_display.as_deref(), Some("10%"));
+        assert_eq!(document.total_display, "45.00");
+        // The words describe the amount that is actually due.
+        assert!(document.total_words.contains("خمسة وأربعون"));
     }
 }

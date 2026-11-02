@@ -78,13 +78,13 @@ The Rust side recompiles on change.
 ## 6. Tests
 
 ```powershell
-# Rust: 84 tests
+# Rust: 97 tests
 cargo test --manifest-path src-tauri/Cargo.toml
 
 # Frontend: 6 tests
 npm run test:unit
 
-# End-to-end: 14 tests (needs a browser)
+# End-to-end: 17 tests (needs a browser)
 npm run test:e2e
 
 # TypeScript (strict)

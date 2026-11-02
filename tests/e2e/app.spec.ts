@@ -214,4 +214,61 @@ test.describe("برنامج الفواتير", () => {
     });
     expect(loaded).toBe(true);
   });
+
+  test("يطبّق خصم النسبة ويطبع تفصيل الخصم في الفاتورة", async ({ page }) => {
+    await page.getByLabel("اسم العميل").fill("عميل تجريبي");
+    await fillLine(page, "منتج تجريبي", "2", "50.00");
+
+    await page.locator("#discount-kind").selectOption("percent");
+    await page.getByLabel("قيمة الخصم").fill("10");
+
+    // 2 × 50.00 = 100.00, minus 10% = 90.00.
+    const totals = page.locator(".totals");
+    await expect(totals.getByText("100.00 EGP")).toBeVisible();
+    await expect(totals.getByText("10.00 EGP")).toBeVisible();
+    await expect(totals.getByText("90.00 EGP")).toBeVisible();
+
+    // The document shows the breakdown: subtotal, discount, net total.
+    await page.getByRole("button", { name: "معاينة الفاتورة" }).click();
+    const invoicePage = page
+      .getByRole("dialog", { name: "معاينة الفاتورة" })
+      .locator(".invoice-page")
+      .first();
+    const box = invoicePage.locator(".invoice-totals__box");
+    await expect(box.locator(".invoice-totals__row--subtotal")).toContainText("100.00");
+    await expect(box.locator(".invoice-totals__row--discount")).toContainText("10.00");
+    await expect(box.locator(".invoice-totals__row--discount")).toContainText("10%");
+    await expect(box.locator(".invoice-totals__row--grand")).toContainText("90.00");
+  });
+
+  test("يرفض نسبة خصم أكبر من مئة بالمئة", async ({ page }) => {
+    await page.getByLabel("اسم العميل").fill("عميل تجريبي");
+    await fillLine(page, "منتج تجريبي", "2", "50.00");
+
+    await page.locator("#discount-kind").selectOption("percent");
+    await page.getByLabel("قيمة الخصم").fill("120");
+    await expect(page.locator(".totals__hint")).toHaveText("نسبة الخصم لا يمكن أن تتجاوز 100%");
+
+    // The invoice cannot be saved with that discount.
+    await page.getByRole("button", { name: "إصدار الفاتورة" }).click();
+    await expect(page.getByText("نسبة الخصم لا يمكن أن تتجاوز 100%").first()).toBeVisible();
+  });
+
+  test("يطبّق خصم المبلغ ويحفظه مع الفاتورة", async ({ page }) => {
+    await page.getByLabel("اسم العميل").fill("عميل تجريبي");
+    await fillLine(page, "منتج تجريبي", "2", "50.00");
+
+    await page.locator("#discount-kind").selectOption("amount");
+    await page.getByLabel("قيمة الخصم").fill("25.00");
+
+    const totals = page.locator(".totals");
+    await expect(totals.getByText("25.00 EGP")).toBeVisible();
+    await expect(totals.getByText("75.00 EGP")).toBeVisible();
+
+    // The discount travels with the issued invoice.
+    await page.getByRole("button", { name: "إصدار الفاتورة" }).click();
+    const box = page.locator(".invoice-page .invoice-totals__box").first();
+    await expect(box.locator(".invoice-totals__row--discount")).toContainText("25.00");
+    await expect(box.locator(".invoice-totals__row--grand")).toContainText("75.00");
+  });
 });

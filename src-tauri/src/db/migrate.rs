@@ -16,6 +16,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "0002_invoice_terms.sql",
         include_str!("migrations/0002_invoice_terms.sql"),
     ),
+    (
+        3,
+        "0003_invoice_discount.sql",
+        include_str!("migrations/0003_invoice_discount.sql"),
+    ),
 ];
 
 /// Apply all pending migrations.
@@ -68,7 +73,7 @@ mod tests {
     fn migrations_apply_to_empty_database() {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
-        assert_eq!(current_version(&conn).unwrap(), 2);
+        assert_eq!(current_version(&conn).unwrap(), 3);
 
         // Core tables exist.
         for table in [
@@ -98,7 +103,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap();
-        assert_eq!(current_version(&conn).unwrap(), 2);
+        assert_eq!(current_version(&conn).unwrap(), 3);
     }
 
     #[test]
@@ -113,6 +118,63 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         assert!(columns.iter().any(|c| c == "terms_json"));
+    }
+
+    #[test]
+    fn invoices_carry_the_discount_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(invoices)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert!(columns.iter().any(|c| c == "discount_kind"));
+        assert!(columns.iter().any(|c| c == "discount_value"));
+        assert!(columns.iter().any(|c| c == "discount_minor"));
+    }
+
+    #[test]
+    fn an_existing_database_gains_the_discount_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // The schema as it was before the discount existed, with an invoice in
+        // it — this is what an upgrading install looks like.
+        conn.execute_batch(include_str!("migrations/0001_init.sql"))
+            .unwrap();
+        conn.execute_batch(include_str!("migrations/0002_invoice_terms.sql"))
+            .unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_migrations (
+                 version    INTEGER PRIMARY KEY,
+                 applied_at TEXT NOT NULL
+             );
+             INSERT INTO schema_migrations(version, applied_at)
+                 VALUES (1, '2026-01-01'), (2, '2026-01-01');
+             INSERT INTO invoices(invoice_date, customer_name, status, seller_snapshot_json,
+                     total_minor, created_at, updated_at)
+                 VALUES ('2026-01-01', 'عميل قديم', 'issued', '{}', 5000, '2026-01-01', '2026-01-01');",
+        )
+        .unwrap();
+
+        run(&conn).unwrap();
+        assert_eq!(current_version(&conn).unwrap(), 3);
+
+        // The old invoice keeps its total and gains an empty discount.
+        let row: (i64, String, i64, i64) = conn
+            .query_row(
+                "SELECT total_minor, discount_kind, discount_value, discount_minor
+                 FROM invoices WHERE customer_name = 'عميل قديم'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(row.0, 5000);
+        assert_eq!(row.1, "amount");
+        assert_eq!(row.2, 0);
+        assert_eq!(row.3, 0);
     }
 
     #[test]

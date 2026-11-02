@@ -129,6 +129,8 @@ pub struct PreviewRequest {
     pub notes: Option<String>,
     /// The custom terms (بنود) chosen for this invoice.
     pub terms: Option<Vec<String>>,
+    /// The discount applied to the whole invoice.
+    pub discount: Option<crate::domain::invoice::DiscountInput>,
     pub lines: Vec<crate::domain::invoice::InvoiceLineInput>,
 }
 
@@ -138,7 +140,8 @@ pub fn preview_document(app: AppHandle, payload: PreviewRequest) -> AppResult<In
     let state = app.state::<AppState>();
     let currency = state.currency()?;
     let seller = state.seller_snapshot()?;
-    let computed = crate::domain::invoice::compute_invoice(&payload.lines, &currency)?;
+    let discount = crate::domain::invoice::Discount::parse(payload.discount.as_ref(), &currency)?;
+    let computed = crate::domain::invoice::compute_invoice(&payload.lines, &discount, &currency)?;
     let terms = payload.terms.unwrap_or_default();
     Ok(InvoiceDocument::build_preview(
         crate::domain::document::PreviewInput {
@@ -148,8 +151,7 @@ pub fn preview_document(app: AppHandle, payload: PreviewRequest) -> AppResult<In
             customer_phone: payload.customer_phone.as_deref(),
             notes: payload.notes.as_deref(),
             terms: &terms,
-            lines: &computed.lines,
-            total_minor: computed.total_minor,
+            computed: &computed,
         },
         &currency,
         &seller,

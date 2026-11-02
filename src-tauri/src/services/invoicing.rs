@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::now;
 use crate::domain::error::{AppError, AppResult};
-use crate::domain::invoice::{compute_invoice, InvoiceLineInput, SellerSnapshot};
+use crate::domain::invoice::{
+    compute_invoice, DiscountInput, InvoiceLineInput, SellerSnapshot,
+};
 use crate::domain::money::Currency;
 use crate::domain::numbering::{draft_identifier, format_invoice_number};
 
@@ -68,6 +70,14 @@ pub struct Invoice {
     pub terms: Vec<String>,
     pub status: InvoiceStatus,
     pub seller_snapshot: SellerSnapshot,
+    /// How the discount was expressed: "amount" or "percent".
+    pub discount_kind: String,
+    /// The value the user typed: minor units for an amount, hundredths of a
+    /// percent for a percentage.
+    pub discount_value: i64,
+    /// The discount that was applied, in minor units.
+    pub discount_minor: i64,
+    /// The amount due: the subtotal minus the discount.
     pub total_minor: i64,
     pub lines: Vec<StoredLine>,
     pub deleted_at: Option<String>,
@@ -89,6 +99,9 @@ pub struct InvoiceInput {
     /// and more than one may be chosen.
     #[serde(default)]
     pub terms: Vec<String>,
+    /// The discount applied to the whole invoice. Optional.
+    #[serde(default)]
+    pub discount: Option<DiscountInput>,
     pub lines: Vec<InvoiceLineInput>,
 }
 
@@ -162,15 +175,17 @@ pub fn create_draft(
     seller: &SellerSnapshot,
 ) -> AppResult<Invoice> {
     input.validate()?;
-    let computed = compute_invoice(&input.lines, currency)?;
+    let discount = crate::domain::invoice::Discount::parse(input.discount.as_ref(), currency)?;
+    let computed = compute_invoice(&input.lines, &discount, currency)?;
     let timestamp = now();
     let seller_json = serde_json::to_string(seller)?;
 
     let tx = conn.unchecked_transaction()?;
     tx.execute(
         "INSERT INTO invoices(invoice_number, invoice_date, customer_name, customer_phone, notes,
-             terms_json, status, seller_snapshot_json, total_minor, created_at, updated_at)
-         VALUES (NULL, ?1, ?2, ?3, ?4, ?5, 'draft', ?6, ?7, ?8, ?8)",
+             terms_json, status, seller_snapshot_json, total_minor, created_at, updated_at,
+             discount_kind, discount_value, discount_minor)
+         VALUES (NULL, ?1, ?2, ?3, ?4, ?5, 'draft', ?6, ?7, ?8, ?8, ?9, ?10, ?11)",
         params![
             input.invoice_date.trim(),
             input.customer_name.trim(),
@@ -188,6 +203,9 @@ pub fn create_draft(
             seller_json,
             computed.total_minor,
             timestamp,
+            computed.discount_kind,
+            computed.discount_value,
+            computed.discount_minor,
         ],
     )?;
     let invoice_id = tx.last_insert_rowid();
@@ -253,7 +271,8 @@ pub fn update_draft(
     currency: &Currency,
 ) -> AppResult<Invoice> {
     input.validate()?;
-    let computed = compute_invoice(&input.lines, currency)?;
+    let discount = crate::domain::invoice::Discount::parse(input.discount.as_ref(), currency)?;
+    let computed = compute_invoice(&input.lines, &discount, currency)?;
 
     let tx = conn.unchecked_transaction()?;
     let status: Option<String> = tx
@@ -271,7 +290,8 @@ pub fn update_draft(
 
     tx.execute(
         "UPDATE invoices SET invoice_date = ?2, customer_name = ?3, customer_phone = ?4,
-             notes = ?5, terms_json = ?6, total_minor = ?7, updated_at = ?8
+             notes = ?5, terms_json = ?6, total_minor = ?7, updated_at = ?8,
+             discount_kind = ?9, discount_value = ?10, discount_minor = ?11
          WHERE id = ?1",
         params![
             invoice_id,
@@ -290,6 +310,9 @@ pub fn update_draft(
             serde_json::to_string(&clean_terms(&input.terms))?,
             computed.total_minor,
             now(),
+            computed.discount_kind,
+            computed.discount_value,
+            computed.discount_minor,
         ],
     )?;
     tx.execute(
@@ -331,7 +354,8 @@ pub fn get(conn: &Connection, id: i64) -> AppResult<Option<Invoice>> {
     let invoice = conn
         .query_row(
             "SELECT id, invoice_number, invoice_date, customer_name, customer_phone, notes,
-                    terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
+                    terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at,
+                    discount_kind, discount_value, discount_minor
              FROM invoices WHERE id = ?1",
             [id],
             map_invoice,
@@ -407,6 +431,9 @@ fn map_invoice(row: &rusqlite::Row<'_>) -> rusqlite::Result<Invoice> {
         terms,
         status: InvoiceStatus::parse(&status_text),
         seller_snapshot,
+        discount_kind: row.get(13)?,
+        discount_value: row.get(14)?,
+        discount_minor: row.get(15)?,
         total_minor: row.get(9)?,
         lines: Vec::new(),
         deleted_at: row.get(10)?,
@@ -445,7 +472,8 @@ pub fn list(conn: &Connection, filter: &InvoiceFilter) -> AppResult<InvoicePage>
 
     let list_sql = format!(
         "SELECT id, invoice_number, invoice_date, customer_name, customer_phone, notes,
-                terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
+                terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at,
+                discount_kind, discount_value, discount_minor
          FROM invoices {where_sql}{date_clause}
          ORDER BY invoice_date DESC, id DESC LIMIT ? OFFSET ?"
     );
@@ -523,7 +551,8 @@ pub fn purge(conn: &Connection, id: i64) -> AppResult<()> {
 pub fn list_trashed(conn: &Connection) -> AppResult<Vec<Invoice>> {
     let mut stmt = conn.prepare(
         "SELECT id, invoice_number, invoice_date, customer_name, customer_phone, notes,
-                terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at
+                terms_json, status, seller_snapshot_json, total_minor, deleted_at, created_at, updated_at,
+                discount_kind, discount_value, discount_minor
          FROM invoices WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
     )?;
     let mut items = stmt
@@ -550,8 +579,9 @@ pub fn duplicate_as_new(
     let tx = conn.unchecked_transaction()?;
     tx.execute(
         "INSERT INTO invoices(invoice_number, invoice_date, customer_name, customer_phone, notes,
-             terms_json, status, seller_snapshot_json, total_minor, created_at, updated_at)
-         VALUES (NULL, ?1, ?2, ?3, ?4, ?5, 'draft', ?6, ?7, ?8, ?8)",
+             terms_json, status, seller_snapshot_json, total_minor, created_at, updated_at,
+             discount_kind, discount_value, discount_minor)
+         VALUES (NULL, ?1, ?2, ?3, ?4, ?5, 'draft', ?6, ?7, ?8, ?8, ?9, ?10, ?11)",
         params![
             chrono::Local::now().format("%Y-%m-%d").to_string(),
             source.customer_name,
@@ -561,6 +591,9 @@ pub fn duplicate_as_new(
             seller_json,
             source.total_minor,
             timestamp,
+            source.discount_kind,
+            source.discount_value,
+            source.discount_minor,
         ],
     )?;
     let new_id = tx.last_insert_rowid();
@@ -610,6 +643,7 @@ mod tests {
             customer_phone: Some("01001234567".into()),
             notes: None,
             terms: Vec::new(),
+            discount: None,
             lines: vec![line("حليب", "2", "25.00")],
         }
     }
@@ -731,6 +765,55 @@ mod tests {
         let egp = Currency::egp();
         let draft = create_draft(&conn, &input(), &egp, &seller()).unwrap();
         assert!(draft.terms.is_empty());
+    }
+
+    #[test]
+    fn stores_the_discount_on_the_invoice() {
+        let conn = open_in_memory().unwrap();
+        let egp = Currency::egp();
+        let mut input = input();
+        input.discount = Some(DiscountInput {
+            kind: "percent".into(),
+            value: "10".into(),
+        });
+
+        let draft = create_draft(&conn, &input, &egp, &seller()).unwrap();
+        // The line total is 50.00, so 10% is 5.00 and 45.00 is due.
+        assert_eq!(draft.discount_kind, "percent");
+        assert_eq!(draft.discount_value, 1000);
+        assert_eq!(draft.discount_minor, 500);
+        assert_eq!(draft.total_minor, 4500);
+
+        let reopened = get(&conn, draft.id).unwrap().unwrap();
+        assert_eq!(reopened.discount_minor, 500);
+        assert_eq!(reopened.total_minor, 4500);
+    }
+
+    #[test]
+    fn an_invoice_without_a_discount_has_none() {
+        let conn = open_in_memory().unwrap();
+        let egp = Currency::egp();
+        let draft = create_draft(&conn, &input(), &egp, &seller()).unwrap();
+        assert_eq!(draft.discount_minor, 0);
+        assert_eq!(draft.total_minor, 5000);
+    }
+
+    #[test]
+    fn a_duplicate_keeps_the_discount() {
+        let conn = open_in_memory().unwrap();
+        let egp = Currency::egp();
+        let mut input = input();
+        input.discount = Some(DiscountInput {
+            kind: "amount".into(),
+            value: "5.00".into(),
+        });
+        let draft = create_draft(&conn, &input, &egp, &seller()).unwrap();
+        let issued = issue(&conn, draft.id, &egp, &seller()).unwrap();
+
+        let copy = duplicate_as_new(&conn, issued.id, &egp, &seller()).unwrap();
+        assert_eq!(copy.discount_kind, "amount");
+        assert_eq!(copy.discount_minor, 500);
+        assert_eq!(copy.total_minor, 4500);
     }
 
     #[test]

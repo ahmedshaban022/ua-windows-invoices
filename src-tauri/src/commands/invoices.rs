@@ -3,7 +3,8 @@
 use tauri::State;
 
 use crate::domain::error::{AppError, AppResult};
-use crate::domain::invoice::{compute_invoice, ComputedInvoice, InvoiceLineInput};
+use crate::domain::invoice::{
+    compute_invoice, ComputedInvoice, Discount, DiscountInput, InvoiceLineInput};
 use crate::services::invoicing::{self, Invoice, InvoiceFilter, InvoiceInput, InvoicePage};
 use crate::state::AppState;
 
@@ -57,9 +58,11 @@ pub fn issue_invoice(state: State<'_, AppState>, id: i64) -> AppResult<Invoice> 
 pub fn preview_invoice(
     state: State<'_, AppState>,
     lines: Vec<InvoiceLineInput>,
+    discount: Option<DiscountInput>,
 ) -> AppResult<ComputedInvoice> {
     let currency = state.currency()?;
-    compute_invoice(&lines, &currency)
+    let discount = Discount::parse(discount.as_ref(), &currency)?;
+    compute_invoice(&lines, &discount, &currency)
 }
 
 /// Move an invoice to the trash.

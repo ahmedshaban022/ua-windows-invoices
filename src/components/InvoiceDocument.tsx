@@ -71,25 +71,30 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
       lang="ar"
     >
       <header className="invoice-head">
-        <div
-          className="invoice-head__logo"
-          dangerouslySetInnerHTML={{ __html: document.seller.logoSvg }}
-        />
+        {/* The company name sits above the logo, on its own line. */}
+        {document.seller.companyName ? (
+          <div className="invoice-head__company">{document.seller.companyName}</div>
+        ) : null}
 
-        <div className="invoice-head__seller">
-          {document.seller.companyName ? (
-            <div className="invoice-head__company">{document.seller.companyName}</div>
-          ) : null}
-          <div className="invoice-head__meta">
-            {document.seller.companyPhone ? <div>{document.seller.companyPhone}</div> : null}
-            {document.seller.companyAddress ? <div>{document.seller.companyAddress}</div> : null}
+        {/* Start (logo) · center (title) · end (contact details). */}
+        <div className="invoice-head__row">
+          <div
+            className="invoice-head__logo"
+            dangerouslySetInnerHTML={{ __html: document.seller.logoSvg }}
+          />
+
+          <div className="invoice-head__title">
+            <div className="invoice-head__title-word">فاتورة</div>
+            <div className="invoice-head__title-sub">Invoice</div>
+            {document.isDraft ? <span className="invoice-head__draft">مسودة</span> : null}
           </div>
-        </div>
 
-        <div className="invoice-head__title">
-          <div className="invoice-head__title-word">فاتورة</div>
-          <div className="invoice-head__title-sub">Invoice</div>
-          {document.isDraft ? <span className="invoice-head__draft">مسودة</span> : null}
+          <div className="invoice-head__seller">
+            <div className="invoice-head__meta">
+              {document.seller.companyPhone ? <div>{document.seller.companyPhone}</div> : null}
+              {document.seller.companyAddress ? <div>{document.seller.companyAddress}</div> : null}
+            </div>
+          </div>
         </div>
       </header>
 
@@ -155,6 +160,25 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
         <>
           <div className="invoice-totals">
             <div className="invoice-totals__box">
+              {document.discountDisplay ? (
+                <>
+                  <div className="invoice-totals__row invoice-totals__row--subtotal">
+                    <span className="invoice-totals__label">المجموع</span>
+                    <span className="invoice-totals__value">
+                      {document.subtotalDisplay} {currency}
+                    </span>
+                  </div>
+                  <div className="invoice-totals__row invoice-totals__row--discount">
+                    <span className="invoice-totals__label">
+                      الخصم
+                      {document.discountRateDisplay ? ` ${document.discountRateDisplay}` : ""}
+                    </span>
+                    <span className="invoice-totals__value">
+                      <span className="ltr">−{document.discountDisplay}</span> {currency}
+                    </span>
+                  </div>
+                </>
+              ) : null}
               <div className="invoice-totals__row invoice-totals__row--grand">
                 <span className="invoice-totals__label">الإجمالي</span>
                 <span className="invoice-totals__value">
@@ -271,13 +295,19 @@ function MeasuringTable({ document }: { document: DocumentModel }) {
     <div className="invoice-page__measure" aria-hidden="true" ref={undefined}>
       <div data-head-height>
         <header className="invoice-head">
-          <div className="invoice-head__logo" />
-          <div className="invoice-head__seller">
-            <div className="invoice-head__company">{document.seller.companyName}</div>
-            <div className="invoice-head__meta">قياس</div>
-          </div>
-          <div className="invoice-head__title">
-            <div className="invoice-head__title-word">فاتورة</div>
+          <div className="invoice-head__company">{document.seller.companyName}</div>
+          <div className="invoice-head__row">
+            {/* The real logo is measured, so the reserved head height is exact. */}
+            <div
+              className="invoice-head__logo"
+              dangerouslySetInnerHTML={{ __html: document.seller.logoSvg }}
+            />
+            <div className="invoice-head__title">
+              <div className="invoice-head__title-word">فاتورة</div>
+            </div>
+            <div className="invoice-head__seller">
+              <div className="invoice-head__meta">قياس</div>
+            </div>
           </div>
         </header>
         <div className="invoice-meta">
