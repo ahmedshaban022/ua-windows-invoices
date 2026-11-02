@@ -20,6 +20,9 @@ backups/
 *.zip
 !tests/fixtures/*.zip
 
+# Installers downloaded from the published release
+releases/
+
 # Editor / OS noise
 .DS_Store
 Thumbs.db
