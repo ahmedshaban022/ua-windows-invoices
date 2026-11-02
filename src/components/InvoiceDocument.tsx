@@ -72,22 +72,21 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
     >
       <header className="invoice-head">
         {/* The company name sits above the logo, on its own line. */}
-        {document.seller.companyName ? (
-          <div className="invoice-head__company">{document.seller.companyName}</div>
+        {document.seller.companyName || document.isDraft ? (
+          <div className="invoice-head__company">
+            {document.seller.companyName ? (
+              <span className="invoice-head__company-name">{document.seller.companyName}</span>
+            ) : null}
+            {document.isDraft ? <span className="invoice-head__draft">مسودة</span> : null}
+          </div>
         ) : null}
 
-        {/* Start (logo) · center (title) · end (contact details). */}
+        {/* Start (logo) · end (contact details). */}
         <div className="invoice-head__row">
           <div
             className="invoice-head__logo"
             dangerouslySetInnerHTML={{ __html: document.seller.logoSvg }}
           />
-
-          <div className="invoice-head__title">
-            <div className="invoice-head__title-word">فاتورة</div>
-            <div className="invoice-head__title-sub">Invoice</div>
-            {document.isDraft ? <span className="invoice-head__draft">مسودة</span> : null}
-          </div>
 
           <div className="invoice-head__seller">
             <div className="invoice-head__meta">
@@ -153,42 +152,46 @@ function Page({ document, lines, lineNumbers, pageIndex, pageCount }: PageProps)
               </tr>
             ))
           )}
+
+          {/* The totals are the last rows of the same table. */}
+          {isLast && document.discountDisplay ? (
+            <tr className="invoice-table__totals invoice-table__totals--subtotal">
+              <td className="invoice-table__totals-label" colSpan={4}>
+                المجموع
+              </td>
+              <td className="invoice-table__money invoice-table__totals-money">
+                {document.subtotalDisplay} {currency}
+              </td>
+            </tr>
+          ) : null}
+          {isLast && document.discountDisplay ? (
+            <tr className="invoice-table__totals invoice-table__totals--discount">
+              <td className="invoice-table__totals-label" colSpan={4}>
+                الخصم
+                {document.discountRateDisplay ? ` ${document.discountRateDisplay}` : ""}
+              </td>
+              <td className="invoice-table__money invoice-table__totals-money">
+                <span className="ltr">−{document.discountDisplay}</span> {currency}
+              </td>
+            </tr>
+          ) : null}
+          {isLast ? (
+            <tr className="invoice-table__totals invoice-table__totals--grand">
+              <td className="invoice-table__totals-label" colSpan={4}>
+                الإجمالي
+              </td>
+              <td className="invoice-table__money invoice-table__totals-money">
+                {document.totalDisplay} {currency}
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
 
+      {isLast ? <div className="invoice-words">الإجمالي كتابةً: {document.totalWords}</div> : null}
+
       {isLast ? (
         <>
-          <div className="invoice-totals">
-            <div className="invoice-totals__box">
-              {document.discountDisplay ? (
-                <>
-                  <div className="invoice-totals__row invoice-totals__row--subtotal">
-                    <span className="invoice-totals__label">المجموع</span>
-                    <span className="invoice-totals__value">
-                      {document.subtotalDisplay} {currency}
-                    </span>
-                  </div>
-                  <div className="invoice-totals__row invoice-totals__row--discount">
-                    <span className="invoice-totals__label">
-                      الخصم
-                      {document.discountRateDisplay ? ` ${document.discountRateDisplay}` : ""}
-                    </span>
-                    <span className="invoice-totals__value">
-                      <span className="ltr">−{document.discountDisplay}</span> {currency}
-                    </span>
-                  </div>
-                </>
-              ) : null}
-              <div className="invoice-totals__row invoice-totals__row--grand">
-                <span className="invoice-totals__label">الإجمالي</span>
-                <span className="invoice-totals__value">
-                  {document.totalDisplay} {currency}
-                </span>
-              </div>
-              <div className="invoice-totals__words">الإجمالي كتابةً: {document.totalWords}</div>
-            </div>
-          </div>
-
           {document.notes ? (
             <div className="invoice-notes">
               <div className="invoice-notes__label">ملاحظات</div>
@@ -295,16 +298,15 @@ function MeasuringTable({ document }: { document: DocumentModel }) {
     <div className="invoice-page__measure" aria-hidden="true" ref={undefined}>
       <div data-head-height>
         <header className="invoice-head">
-          <div className="invoice-head__company">{document.seller.companyName}</div>
+          <div className="invoice-head__company">
+            <span className="invoice-head__company-name">{document.seller.companyName}</span>
+          </div>
           <div className="invoice-head__row">
             {/* The real logo is measured, so the reserved head height is exact. */}
             <div
               className="invoice-head__logo"
               dangerouslySetInnerHTML={{ __html: document.seller.logoSvg }}
             />
-            <div className="invoice-head__title">
-              <div className="invoice-head__title-word">فاتورة</div>
-            </div>
             <div className="invoice-head__seller">
               <div className="invoice-head__meta">قياس</div>
             </div>

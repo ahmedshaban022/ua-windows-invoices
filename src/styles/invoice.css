@@ -52,15 +52,21 @@
 
 /* The company name sits above the logo, on its own line. */
 .invoice-head__company {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.invoice-head__company-name {
   font-size: 15pt;
   font-weight: 700;
   color: var(--doc-brand, #0b68e6);
   line-height: 1.3;
 }
 
-/* Start (logo) · center (title) · end (contact details).
-   The two side columns share the free space equally, so the title stays
-   exactly in the middle of the page whatever the logo and the details weigh. */
+/* Start (logo) · end (contact details).
+   The two columns share the free space equally, so the details stay at the
+   edge of the page whatever the logo weighs. */
 .invoice-head__row {
   display: flex;
   justify-content: space-between;
@@ -92,29 +98,8 @@
   font-size: 9.5pt;
 }
 
-.invoice-head__title {
-  flex: none;
-  text-align: center;
-  min-width: 120px;
-}
-
-.invoice-head__title-word {
-  font-size: 20pt;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: var(--doc-brand, #0b68e6);
-}
-
-.invoice-head__title-sub {
-  font-size: 8.5pt;
-  color: #7b8794;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
 .invoice-head__draft {
   display: inline-block;
-  margin-top: 4px;
   padding: 1px 9px;
   border-radius: 999px;
   background: #fdf5e3;
@@ -176,7 +161,7 @@
   vertical-align: top;
 }
 
-.invoice-table tbody tr:nth-child(even) td {
+.invoice-table tbody tr:nth-child(even):not(.invoice-table__totals) td {
   background: #fbfaf8;
 }
 
@@ -198,60 +183,38 @@
 }
 
 /* Totals ------------------------------------------------------------------ */
-.invoice-totals {
-  margin-top: 14px;
-  display: flex;
-  justify-content: flex-start;
+/* The totals are the last rows of the items table, not a separate box. */
+.invoice-table__totals td {
+  border-top: 1px solid #e6e0d6;
+  background: #ffffff;
 }
 
-.invoice-totals__box {
-  min-width: 260px;
-  border: 1px solid #e6e0d6;
-  border-radius: 8px;
-  overflow: hidden;
+.invoice-table__totals-label {
+  text-align: start;
+  font-weight: 600;
 }
 
-.invoice-totals__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 8px 14px;
-  font-size: 10.5pt;
+.invoice-table__totals-money {
+  text-align: end;
 }
 
-.invoice-totals__row--grand {
+.invoice-table__totals--subtotal .invoice-table__totals-label,
+.invoice-table__totals--discount .invoice-table__totals-label,
+.invoice-table__totals--discount .invoice-table__totals-money {
+  color: #52606d;
+}
+
+.invoice-table__totals--grand td {
   background: var(--doc-brand, #0b68e6);
   color: var(--doc-brand-contrast, #ffffff);
+  border-top: 1px solid var(--doc-brand, #0b68e6);
   font-weight: 800;
-  font-size: 13pt;
+  font-size: 12pt;
 }
 
-.invoice-totals__label {
-  color: #52606d;
-}
-
-/* The discount row is muted so the grand total stays the focal point. */
-.invoice-totals__row--discount {
-  color: #52606d;
-}
-
-.invoice-totals__row--discount .invoice-totals__label {
-  color: #52606d;
-}
-
-.invoice-totals__row--grand .invoice-totals__label {
-  color: var(--doc-brand-contrast, #ffffff);
-}
-
-.invoice-totals__value {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.invoice-totals__words {
-  padding: 8px 14px;
-  background: #fbfaf8;
-  border-top: 1px solid #e6e0d6;
+.invoice-words {
+  margin-top: 6px;
+  text-align: end;
   font-size: 9.5pt;
   color: #52606d;
 }

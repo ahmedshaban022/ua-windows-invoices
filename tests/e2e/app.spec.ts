@@ -236,17 +236,18 @@ test.describe("برنامج الفواتير", () => {
     await expect(totals.getByText("10.00 EGP")).toBeVisible();
     await expect(totals.getByText("90.00 EGP")).toBeVisible();
 
-    // The document shows the breakdown: subtotal, discount, net total.
+    // The document shows the breakdown as the last rows of the items table:
+    // subtotal, discount, net total.
     await page.getByRole("button", { name: "معاينة الفاتورة" }).click();
     const invoicePage = page
       .getByRole("dialog", { name: "معاينة الفاتورة" })
       .locator(".invoice-page")
       .first();
-    const box = invoicePage.locator(".invoice-totals__box");
-    await expect(box.locator(".invoice-totals__row--subtotal")).toContainText("100.00");
-    await expect(box.locator(".invoice-totals__row--discount")).toContainText("10.00");
-    await expect(box.locator(".invoice-totals__row--discount")).toContainText("10%");
-    await expect(box.locator(".invoice-totals__row--grand")).toContainText("90.00");
+    const table = invoicePage.locator(".invoice-table").first();
+    await expect(table.locator(".invoice-table__totals--subtotal")).toContainText("100.00");
+    await expect(table.locator(".invoice-table__totals--discount")).toContainText("10.00");
+    await expect(table.locator(".invoice-table__totals--discount")).toContainText("10%");
+    await expect(table.locator(".invoice-table__totals--grand")).toContainText("90.00");
   });
 
   test("يرفض نسبة خصم أكبر من مئة بالمئة", async ({ page }) => {
@@ -275,8 +276,8 @@ test.describe("برنامج الفواتير", () => {
 
     // The discount travels with the issued invoice.
     await page.getByRole("button", { name: "إصدار الفاتورة" }).click();
-    const box = page.locator(".invoice-page .invoice-totals__box").first();
-    await expect(box.locator(".invoice-totals__row--discount")).toContainText("25.00");
-    await expect(box.locator(".invoice-totals__row--grand")).toContainText("75.00");
+    const table = page.locator(".invoice-page .invoice-table").first();
+    await expect(table.locator(".invoice-table__totals--discount")).toContainText("25.00");
+    await expect(table.locator(".invoice-table__totals--grand")).toContainText("75.00");
   });
 });
