@@ -51,6 +51,14 @@ publishes. The public key in the repository is the one that matches the private
 key in `%USERPROFILE%\.tauri\invoice-updater.key`; if the key is ever rotated,
 both values have to be replaced together.
 
+### The feed has to be reachable without a GitHub login
+
+The updater plugin fetches the manifest **anonymously** — it sends no GitHub
+credentials. A release that lives in a **private** repository therefore answers
+`404` to every client, the banner never appears, and the installer cannot be
+downloaded. The repository that serves the release has to be publicly readable
+(this one is public), or the feed has to be hosted somewhere that is.
+
 ---
 
 ## 3. Configure the CI secrets
